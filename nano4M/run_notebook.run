@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --chdir /home/vifian/COM-304-FM/com-304-FM-project/nano4M
+#SBATCH --gres=gpu:1
+#SBATCH --ntasks 1
+#SBATCH --cpus-per-task 1
+#SBATCH --mem 4096
+#SBATCH --time 12:30:00 
+#SBATCH --account=com-304
+#SBATCH --qos=com-304
+#SBATCH --output=notebook.log
+
+echo STARTING AT `date`
+
+source /work/com-304/new_environment/anaconda3/etc/profile.d/conda.sh
+conda init
+conda activate nanofm
+
+jupyter nbconvert --to notebook --inplace --execute notebooks/COM304_FM_part3_nano4M.ipynb
+
+echo FINISHED at `date`
+
