@@ -36,7 +36,7 @@ def test_vqvae_forward(vqvae,loader,melToAudio):
         print(f"Reconstruction shape : {x_recon.shape}")
         print(f"VQ loss : {vq_loss}")
         print(f"Time : {time_duration:.3f} seconds")
-        wf = melToAudio(x_recon).detach().cpu()
-        torchaudio.save("audio_tokenizer/vqvae/tests/output/wf.wav",wf[0].unsqueeze(0),sample_rate=24000)
-        print("Waveform saved")
+        #wf = melToAudio(x_recon).detach().cpu()
+        #torchaudio.save("audio_tokenizer/vqvae/tests/output/wf.wav",wf[0].unsqueeze(0),sample_rate=24000)
+        #print("Waveform saved")
         break

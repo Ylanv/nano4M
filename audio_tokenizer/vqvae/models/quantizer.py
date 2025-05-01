@@ -47,7 +47,6 @@ class VQuantizer(nn.Module):
             
             # Reshape back to [B, D, H, W]
             B, D, H, W = z.shape
-            print(z.shape)
             z_q = z_q.view(B, H, W, D).permute(0, 3, 1, 2).contiguous()
             
             # Calculate loss 
