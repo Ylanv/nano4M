@@ -1,7 +1,7 @@
 *.egg-info
 outputs
 wandb
-nanofm/data/
+nano4M/nanofm/data/
 nano4M/audio_tokenizer/vqvae/data/LibriSpeech/
 *.tar.gz
 *.jpg
