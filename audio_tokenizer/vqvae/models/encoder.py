@@ -3,22 +3,17 @@ import torch.nn as nn
 
 
 class VQEncoder(nn.Module):
-    """Simple CNN using 3 ConvLayer consisting 
+    """Simple CNN using 3 ConvLayer consisting
     of Conv2D, batch and Relu and a final Conv2d layer
     """
 
-    def __init__(
-        self, 
-        in_channels=1, 
-        hidden_dims=[64, 128, 256], 
-        embedding_dim=64
-        ):
-        '''
+    def __init__(self, in_channels=1, hidden_dims=[64, 128, 256], embedding_dim=64):
+        """
         Parameters:
-            in_channels (int) : 
-            hidden_dims (list[int]) :  
+            in_channels (int) :
+            hidden_dims (list[int]) :
             embedding_dim (int) : Size of output (i.e embeddings)
-        '''
+        """
         super().__init__()
 
         layers = []

@@ -29,7 +29,7 @@ wandb.init(
         "num_embeddings": 512,
         "sample_rate": sample_rate,
         "segment_duration": segment_duration,
-    }
+    },
 )
 
 # Device
@@ -38,9 +38,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Data
 dataset = LibriSpeechMelDataset(
     root=Path("audio_tokenizer/vqvae/data"),
-    url = "train-clean-100",
+    url="train-clean-100",
     sr=sample_rate,
-    segment_duration=segment_duration
+    segment_duration=segment_duration,
 )
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
 
@@ -79,15 +79,17 @@ for epoch in range(epochs):
 
         # Log losses only
         if step % log_every == 0:
-            wandb.log({
-                "loss/total": loss.item(),
-                "loss/recon": recon_loss.item(),
-                "loss/vq": vq_loss.item(),
-                "epoch": epoch,
-                "step": epoch * len(dataloader) + step
-            })
+            wandb.log(
+                {
+                    "loss/total": loss.item(),
+                    "loss/recon": recon_loss.item(),
+                    "loss/vq": vq_loss.item(),
+                    "epoch": epoch,
+                    "step": epoch * len(dataloader) + step,
+                }
+            )
 
     print(f"Epoch [{epoch+1}] avg loss: {running_loss / len(dataloader):.4f}")
-    #torch.save(model.state_dict(), f"vqvae_epoch{epoch+1}.pt")
+    # torch.save(model.state_dict(), f"vqvae_epoch{epoch+1}.pt")
 torch.save(model.state_dict(), "vqvae_final.pt")
 wandb.finish()

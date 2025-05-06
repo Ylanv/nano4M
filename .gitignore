@@ -2,7 +2,8 @@
 outputs
 wandb
 nano4M/nanofm/data/
-nano4M/audio_tokenizer/vqvae/data/LibriSpeech/
+audio_tokenizer/vqvae/data/LibriSpeech/
+audio_tokenizer/vqvae/data/inference/
 *.tar.gz
 *.jpg
 *.pyc
