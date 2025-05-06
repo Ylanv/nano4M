@@ -7,7 +7,12 @@ from pathlib import Path
 
 from audio_tokenizer.vqvae.models.vqvae import VQVAE
 from audio_tokenizer.vqvae.data.dataset import LibriSpeechMelDataset
-from audio_tokenizer.vqvae.data.audio_utils import Mel_to_wf, Wf_to_mel
+from audio_tokenizer.vqvae.data.audio_utils import (
+    Mel_to_wf,
+    Wf_to_mel,
+    visualize_waveform,
+    visualize_spectogram,
+)
 import torchaudio
 
 
@@ -23,7 +28,7 @@ def reconstruct():
 
     # Dataset
     dataset = LibriSpeechMelDataset(
-        root=Path("audio_tokenizer/vqvae/data"), url="dev-clean"
+        root=Path("audio_tokenizer/vqvae/data"), url="train-clean-100"
     )
     # Dataloader
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
@@ -31,9 +36,10 @@ def reconstruct():
     # Model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = VQVAE(embedding_dim=64, num_embeddings=512).to(device)
-    # model.load_state_dict(torch.load("audio_tokenizer/vqvae/vqvae_final.pt",weights_only = True))
+    model.load_state_dict(
+        torch.load("audio_tokenizer/vqvae/vqvae_final-1.pt", weights_only=True)
+    )
     model.eval()
-
     # Audio utils
     mel_to_wf = Mel_to_wf(
         sample_rate=sample_rate, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels
@@ -70,7 +76,9 @@ def reconstruct():
             x_recon = F.pad(x_recon, (0, mel_len - recon_len), mode="reflect")
 
         print(f"Cropping/Padding, shape : {x_recon.shape}")
-
+        recon_loss_fn = nn.MSELoss()
+        loss = recon_loss_fn(mel, x_recon)
+        print(f"Reconstruction Loss : {loss}")
         waveform_recon = mel_to_wf(x_recon)
         print(f"Mel spectogram transformed to waveform, shape : {waveform_recon.shape}")
         save_waveform_batch(
@@ -82,7 +90,7 @@ def reconstruct():
             output_dir="audio_tokenizer/vqvae/data/inference",
         )
         print(100 * "-")
-        if batch_idx > 2:
+        if batch_idx > -1:
             break
 
 
@@ -118,6 +126,8 @@ def save_waveform_batch(
         # Create path
         orig_path = batch_folder / f"original_{i}.wav"
         recon_path = batch_folder / f"reconstruction_{i}.wav"
+        orig_wf_path = batch_folder / f"original_{i}.png"
+        recon_wf_path = batch_folder / f"reconstruction_{i}.png"
         # Save
         torchaudio.save(
             orig_path.as_posix(),
@@ -133,7 +143,36 @@ def save_waveform_batch(
             encoding="PCM_F",
             bits_per_sample=32,
         )
+        visualize_waveform(orig_wf_i, sample_rate, orig_wf_path.as_posix())
+        visualize_waveform(recon_wf_i, sample_rate, recon_wf_path.as_posix())
         print(f"Saved item {i} of batch {batch_index} at {orig_path}")
+
+
+def check_codebook_similarity(embedding: torch.nn.Embedding, threshold=1e-3):
+    """
+    Checks how similar the embeddings in a codebook are.
+    Args:
+        embedding (nn.Embedding): your codebook
+        threshold (float): tolerance to consider two embeddings as "equal"
+    """
+    weights = embedding.weight.detach().cpu()  # (num_embeddings, embedding_dim)
+    print(f"Codebook shape : {weights.shape}")
+    num_embeddings = weights.size(0)
+
+    # Compute pairwise L2 distance matrix
+    dist_matrix = torch.cdist(weights, weights, p=2)  # (N, N)
+
+    # Set diagonal to large value to ignore self-distance
+    dist_matrix.fill_diagonal_(float("inf"))
+    print(dist_matrix)
+    # Count how many are nearly identical
+    num_identical = (dist_matrix < threshold).sum().item()
+    print(f"Total nearly-identical embeddings (< {threshold}): {num_identical}")
+
+    # Optional: print min, mean, and max distances
+    print(f"Min distance: {dist_matrix.min().item():.6f}")
+    print(f"Mean distance: {dist_matrix.mean().item():.6f}")
+    print(f"Max distance: {dist_matrix.max().item():.6f}")
 
 
 def main():

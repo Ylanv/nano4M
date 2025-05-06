@@ -4,6 +4,9 @@ import torchaudio
 import torchaudio.transforms as T
 import torchaudio.functional as F_audio
 import random
+import librosa
+import matplotlib.pyplot as plt
+from typing import Optional
 
 
 class Mel_to_wf(nn.Module):
@@ -93,3 +96,34 @@ class Wf_to_mel(nn.Module):
         std = mel_db.std()
         mel_db = mel_db - mean / (std + 1e-6)
         return mel_db.squeeze(1), mean, std
+
+
+def visualize_waveform(y, sr, path: Optional[str] = None):
+    """Take audio time series (np.ndarray) and plot waweform"""
+    y = y.numpy()
+    plt.figure(figsize=(12, 4))
+    librosa.display.waveshow(y, sr=sr)
+    plt.title("Audio Waveform")
+    plt.xlabel("Time")
+    plt.ylabel("Amplitude")
+
+    if path is not None:
+        plt.savefig(path)
+        plt.close()
+    else:
+        plt.show()
+
+
+def visualize_spectogram(mel_features, sr, path: Optional[str] = None):
+    """Visualize Spectogram given mel features"""
+    mel_features = mel_features.numpy()
+    plt.figure(figsize=(12, 4))
+    librosa.display.specshow(mel_features, sr=sr, x_axis="time", y_axis="mel")
+    plt.colorbar(format="%2.0f dB")
+    plt.title("Mel Spectrogram")
+
+    if path is not None:
+        plt.savefig(path)
+        plt.close()
+    else:
+        plt.show()
