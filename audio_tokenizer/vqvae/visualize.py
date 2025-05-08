@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pathlib import Path
-
+import torchaudio
 
 from audio_tokenizer.vqvae.models.vqvae import VQVAE,RawVQVAE
 from audio_tokenizer.vqvae.data.dataset import LibriSpeechMelDataset
@@ -13,9 +13,9 @@ from audio_tokenizer.vqvae.data.audio_utils import (
     visualize_waveform,
     visualize_spectogram,
 )
-import torchaudio
 
-SAVE_MODEL_PATH = "audio_tokenizer/vqvae/vqvae_final-2.pt"
+
+SAVE_MODEL_PATH = "audio_tokenizer/vqvae/save/vqvae_epoch30.pt"
 DATASET_PATH = "/work/com-304/snoupy/librispeech/"
 URL = "dev-clean" #"train-clean-100"
 
@@ -42,8 +42,8 @@ def reconstruct():
     # Model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = RawVQVAE(embedding_dim=128, num_embeddings=512).to(device)
-    #model.load_state_dict(torch.load(SAVE_MODEL_PATH, weights_only=True))
-    #model.eval()
+    model.load_state_dict(torch.load(SAVE_MODEL_PATH, weights_only=True))
+    model.eval()
     # Audio utils
     mel_to_wf = Mel_to_wf(
         sample_rate=sample_rate, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels
@@ -55,7 +55,7 @@ def reconstruct():
         hop_length=hop_length,
         segment_duration=segment_duration,
     ).to(device)
-
+    loss_fn = nn.L1Loss()
     for batch_idx, batch in enumerate(dataloader):
         waveform, sr, txt = batch
         waveform = waveform.to(device)
@@ -63,6 +63,10 @@ def reconstruct():
         print(f"Waveform shape : {waveform.shape}, sample rate {sr}")
         wf_n = waveform = waveform / waveform.abs().max(dim=-1, keepdim=True)[0].clamp(min=1e-5)
         x_hat,vq_loss = model(wf_n)
+        recon_loss = loss_fn(x_hat,wf_n)
+        print(f"x hat s:{x_hat.shape}, wf_n : {wf_n.shape}")
+        loss_sftf = stft_loss(x_hat, wf_n,n_fft=n_fft,hop_length=hop_length)
+        print(f"Recon loss:{recon_loss},vq_loss:{vq_loss},total loss{recon_loss + vq_loss},loss sftf : {loss_sftf}")
         save_waveform_batch(
             wf_n,
             x_hat,
@@ -191,6 +195,24 @@ def check_codebook_similarity(embedding: torch.nn.Embedding, threshold=1e-3):
     print(f"Min distance: {dist_matrix.min().item():.6f}")
     print(f"Mean distance: {dist_matrix.mean().item():.6f}")
     print(f"Max distance: {dist_matrix.max().item():.6f}")
+
+
+
+def stft_loss(predicted_audio, target_audio, n_fft=1024, hop_length=256):
+    predicted_audio = predicted_audio.squeeze(1)  # Remove the singleton dimension
+    target_audio = target_audio.squeeze(1)  # Remove the singleton dimension
+    # Compute the STFT (magnitude spectrogram)
+    stft_pred = torch.stft(predicted_audio, n_fft=n_fft, hop_length=hop_length,return_complex=True)
+    stft_target = torch.stft(target_audio, n_fft=n_fft, hop_length=hop_length,return_complex=True)
+
+    # Magnitude of the complex spectrogram
+    mag_pred = torch.abs(stft_pred)
+    mag_target = torch.abs(stft_target)
+
+    # Compute loss as the L1 distance between magnitudes
+    return F.l1_loss(mag_pred, mag_target)
+
+
 
 
 def main():
