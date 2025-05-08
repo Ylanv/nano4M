@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 
 
-from audio_tokenizer.vqvae.models.vqvae import VQVAE
+from audio_tokenizer.vqvae.models.vqvae import VQVAE,RawVQVAE
 from audio_tokenizer.vqvae.data.dataset import LibriSpeechMelDataset
 from audio_tokenizer.vqvae.data.audio_utils import (
     Mel_to_wf,
@@ -15,31 +15,35 @@ from audio_tokenizer.vqvae.data.audio_utils import (
 )
 import torchaudio
 
+SAVE_MODEL_PATH = "audio_tokenizer/vqvae/vqvae_final-2.pt"
+DATASET_PATH = "/work/com-304/snoupy/librispeech/"
+URL = "dev-clean" #"train-clean-100"
 
-def reconstruct():
+# Hyperparameters
+batch_size = 16
+sample_rate = 16000
+segment_duration = 4.0
+stride_duration = 1.0
+n_mels = 80
+n_fft = 1024
+hop_length = 256
 
-    # Hyperparameters
-    batch_size = 2
-    sample_rate = 16000
-    segment_duration = 5.0
-    n_mels = 80
-    n_fft = 1024
-    hop_length = 256
-
+def reconstruct():    
     # Dataset
     dataset = LibriSpeechMelDataset(
-        root=Path("audio_tokenizer/vqvae/data"), url="train-clean-100"
+        root=Path(DATASET_PATH),
+        url=URL,
+        segment_duration=segment_duration,
+        stride_duration=stride_duration,
     )
     # Dataloader
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-
+    print(f"Dataset size : {len(dataset)}")
     # Model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = VQVAE(embedding_dim=64, num_embeddings=512).to(device)
-    model.load_state_dict(
-        torch.load("audio_tokenizer/vqvae/vqvae_final-1.pt", weights_only=True)
-    )
-    model.eval()
+    model = RawVQVAE(embedding_dim=128, num_embeddings=512).to(device)
+    #model.load_state_dict(torch.load(SAVE_MODEL_PATH, weights_only=True))
+    #model.eval()
     # Audio utils
     mel_to_wf = Mel_to_wf(
         sample_rate=sample_rate, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels
@@ -57,13 +61,26 @@ def reconstruct():
         waveform = waveform.to(device)
         print(50 * "-" + f"Batch {batch_idx}" + 50 * "-")
         print(f"Waveform shape : {waveform.shape}, sample rate {sr}")
-        print(f"Transcribe: {txt}")
-
+        wf_n = waveform = waveform / waveform.abs().max(dim=-1, keepdim=True)[0].clamp(min=1e-5)
+        x_hat,vq_loss = model(wf_n)
+        save_waveform_batch(
+            wf_n,
+            x_hat,
+            sample_rate=sample_rate,
+            batch_index=batch_idx,
+            batch_size=wf_n.shape[0],
+            output_dir="audio_tokenizer/vqvae/data/inference",
+        )
+        #print(f"Transcribe: {txt}")    
+        if batch_idx > -1:
+            break 
+        continue
         mel, mean, std = wf_to_mel(waveform)
         print(
             f"Waveform transformed to mel spectogram, shape : {mel.shape}, mean : {mean}, std : {std}"
         )
         x_recon, vq_loss, _ = model(mel)
+        print(f"VQ Loss : {vq_loss}")
         x_recon = x_recon.squeeze(1)
         print(f"Mel spectogram reconstructed, shape : {x_recon.shape}")
 
@@ -76,6 +93,7 @@ def reconstruct():
             x_recon = F.pad(x_recon, (0, mel_len - recon_len), mode="reflect")
 
         print(f"Cropping/Padding, shape : {x_recon.shape}")
+        x_recon = x_recon * (std + 1e-6) + mean
         recon_loss_fn = nn.MSELoss()
         loss = recon_loss_fn(mel, x_recon)
         print(f"Reconstruction Loss : {loss}")
@@ -121,7 +139,7 @@ def save_waveform_batch(
 
     for i in range(batch_size):
         # Extract wf from batch
-        recon_wf_i = recon[i].unsqueeze(0)
+        recon_wf_i = recon[i]
         orig_wf_i = orig[i]
         # Create path
         orig_path = batch_folder / f"original_{i}.wav"

@@ -18,15 +18,15 @@ class ResidualBlock(nn.Module):
     def __init__(self, in_dim, h_dim, res_h_dim):
         super().__init__()
         self.res_block = nn.Sequential(
-            nn.ReLU(True),
-            nn.Conv2d(in_dim, res_h_dim, kernel_size=3, padding=1, bias=False),
-            nn.ReLU(True),
-            nn.Conv2d(res_h_dim, h_dim, kernel_size=1, bias=False),
+            nn.ReLU(),
+            nn.Conv1d(in_dim, res_h_dim, kernel_size=3, padding=1, bias=False),
+            nn.ReLU(),
+            nn.Conv1d(res_h_dim, h_dim, kernel_size=1, bias=False),
         )
 
     def forward(self, x):
-        x = x + self.res_block(x)
-        return x
+        return x + self.res_block(x)
+        
 
 
 class ResidualStack(nn.Module):

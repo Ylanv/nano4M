@@ -94,7 +94,7 @@ class Wf_to_mel(nn.Module):
         # Normalize
         mean = mel_db.mean()
         std = mel_db.std()
-        mel_db = mel_db - mean / (std + 1e-6)
+        mel_db = (mel_db - mean) / (std + 1e-6)
         return mel_db.squeeze(1), mean, std
 
 

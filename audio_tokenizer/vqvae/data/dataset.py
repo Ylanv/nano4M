@@ -13,7 +13,8 @@ class LibriSpeechMelDataset(Dataset):
         self,
         root: Union[str, Path],
         url: str = "dev-clean",
-        segment_duration: float = 2.0,
+        segment_duration: float = 3.0,
+        stride_duration: float = 1.0,
     ):
         """Init dataset class
 
@@ -25,13 +26,34 @@ class LibriSpeechMelDataset(Dataset):
             segment_duration (float) : Duration of each training sample
         """
         self.segment_duration = segment_duration
+        self.stride_duration = stride_duration
         # Load Librispeech from root or download it
         self.dataset = torchaudio.datasets.LIBRISPEECH(
             root=root, url=url, folder_in_archive="LibriSpeech", download=True
         )
 
+        self.segment = []
+        # Calcule n
+        sr = 0
+        for idx in range(len(self.dataset)):
+            wf, sr, *_ = self.dataset[idx]
+            num_frames = wf.shape[1]
+            seg_len = int(sr * segment_duration)
+            stride = int(sr * stride_duration)
+
+            # If waveform is shorter than a single segment skip it
+            if num_frames < seg_len:
+                continue
+
+            # Append the start of each sample
+            for start in range(0, num_frames - seg_len + 1, stride):
+                self.segment.append((idx, start))
+
+        self.segment_length = int(sr * segment_duration)
+
     def __len__(self):
-        return len(self.dataset)
+        # Return the number of segment
+        return len(self.segment)
 
     def __getitem__(self, idx):
         """Return log mel spectogram of a raw waveform from Librispeech
@@ -44,20 +66,14 @@ class LibriSpeechMelDataset(Dataset):
             sr (int) : sampling rate of data point
             txt (str) : Transcribe of data point
         """
+        index, start = self.segment[idx]
+
         # Get data sample
-        waveform, sr, txt, _, _, _ = self.dataset[idx]
+        waveform, sr, txt, _, _, _ = self.dataset[index]
 
         # Convert to mono
         waveform = waveform.mean(dim=0, keepdim=True)
 
-        n_frame = int(sr * self.segment_duration)
-        # Pad clip if too short, crop if too long.
-        frame_wf = waveform.shape[1]
-        if frame_wf < n_frame:
-            pad_size = n_frame - frame_wf
-            waveform = torch.nn.functional.pad(waveform, (0, pad_size))
-        else:
-            # Generate rdm number to choose start of sequence
-            start = random.randint(0, frame_wf - n_frame)
-            waveform = waveform[:, start : start + n_frame]
+        waveform = waveform[:, start : start + self.segment_length]
+
         return waveform, sr, txt

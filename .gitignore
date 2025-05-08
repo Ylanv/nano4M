@@ -4,7 +4,10 @@ wandb
 nano4M/nanofm/data/
 audio_tokenizer/vqvae/data/LibriSpeech/
 audio_tokenizer/vqvae/data/inference/
+*.out
+*.err
 *.tar.gz
+*.pt
 *.jpg
 *.pyc
 .DS_Store
