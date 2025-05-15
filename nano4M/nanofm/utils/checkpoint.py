@@ -89,7 +89,7 @@ def load_state_dict(model, state_dict, prefix='', ignore_missing=''):
 
 
 def save_model(
-        args, iteration, model, model_without_ddp, optimizer, loss_scaler, loss_balancer=None, 
+        args, iteration, model, model_without_ddp, optimizers, loss_scaler, loss_balancer=None, 
         ckpt_name=None, all_nodes=False, save_as_safetensors=False, model_args=None
     ):
     output_dir = Path(args.output_dir)
@@ -107,8 +107,9 @@ def save_model(
             'scaler': loss_scaler.state_dict(),
         }
 
-        if optimizer is not None:
-            to_save['optimizer'] = optimizer.state_dict()
+        for i, optimizer in enumerate(optimizers):
+            if optimizer is not None:
+                to_save[f'optimizer{i}'] = optimizer.state_dict()
 
         if loss_balancer is not None:
             to_save['loss_balancer'] = loss_balancer.state_dict()
@@ -121,7 +122,7 @@ def save_model(
             save_safetensors(to_save["model"], checkpoint_path_st, metadata_dict=model_args)
 
 
-def auto_load_model(args, model, model_without_ddp, optimizer, loss_scaler):
+def auto_load_model(args, model, model_without_ddp, optimizers, loss_scaler):
     output_dir = Path(args.output_dir)
     # torch.amp
     if args.auto_resume and len(args.resume) == 0:
@@ -146,13 +147,14 @@ def auto_load_model(args, model, model_without_ddp, optimizer, loss_scaler):
         model_without_ddp.load_state_dict(checkpoint['model'])
         print("Resume checkpoint %s" % args.resume)
 
-        if 'optimizer' in checkpoint and 'iteration' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            args.start_iteration = checkpoint['iteration'] + 1
+        for i, optimizer in enumerate(optimizers):
+            if f'optimizer{i}' in checkpoint and 'iteration' in checkpoint:
+                optimizer.load_state_dict(checkpoint[f'optimizer{i}'])
+                args.start_iteration = checkpoint['iteration'] + 1
 
-            if 'scaler' in checkpoint:
-                loss_scaler.load_state_dict(checkpoint['scaler'])
-            print("With optim & sched!")
+                if 'scaler' in checkpoint:
+                    loss_scaler.load_state_dict(checkpoint['scaler'])
+                print("With optim & sched!")
 
 
 def save_safetensors(state_dict, ckpt_path, metadata_dict=None):

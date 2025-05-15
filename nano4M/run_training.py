@@ -29,7 +29,7 @@ import torch
 
 import nanofm.utils as utils
 from nanofm.utils import NativeScalerWithGradNormCount as NativeScaler
-from nanofm.utils.optim_factory import create_adamw_optimizer
+from nanofm.utils.optim_factory import create_adamw_optimizer, create_optimizers
 from nanofm.utils.scheduler import cosine_scheduler
 from nanofm.utils.checkpoint import unwrap_model
 
@@ -80,6 +80,8 @@ def get_args():
                         help='Weight decay (default: %(default)s)')
     parser.add_argument('--clip_grad', type=float, default=None,
                         help='Clip gradient norm (default: %(default)s)')
+    parser.add_argument('--momentum', default=0.95, type=float,
+                        help='Muon momentum (default: %(default)s)')
 
     # Eval, checkpointing and resuming
     parser.add_argument('--eval_freq', default=100, type=int, 
@@ -140,7 +142,7 @@ def main(args):
     utils.init_distributed_mode(args)
     device = torch.device(args.device)
     args.world_size = utils.get_world_size()
-    global_rank = utils.get_rank()
+    args.global_rank = utils.get_rank()
     
     # Seeding
     seed = args.seed + utils.get_rank()
@@ -159,7 +161,7 @@ def main(args):
         raise ValueError(f"Invalid dtype: {args.dtype}")
     
     # Logger setup
-    if global_rank == 0 and args.log_wandb:
+    if args.global_rank == 0 and args.log_wandb:
         log_writer = utils.WandbLogger(args)
         print(f"Logging to wandb project {args.wandb_project}, entity {args.wandb_entity}, run name {args.wandb_run_name}")
     else:
@@ -201,7 +203,8 @@ def main(args):
     # Optimizer
     print("LR = %.8f" % args.lr)
     print("Min LR = %.8f" % args.min_lr)
-    optimizer = create_adamw_optimizer(args, model_without_ddp)
+    # optimizer = create_adamw_optimizer(args, model_without_ddp)
+    optimizers = create_optimizers(args, model_without_ddp)
     loss_scaler = NativeScaler(enabled=dtype == torch.float16)
 
     # LR scheduler
@@ -209,7 +212,7 @@ def main(args):
 
     # Auto-load from checkpoint
     utils.auto_load_model(
-        args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+        args=args, model=model, model_without_ddp=model_without_ddp, optimizers=optimizers, loss_scaler=loss_scaler)
     if log_writer is not None:
         log_writer.set_step(args.start_iteration)
 
@@ -222,7 +225,7 @@ def main(args):
         model=model,
         data_loader_train=data_loader_train,
         data_loader_eval=data_loader_eval,
-        optimizer=optimizer,
+        optimizers=optimizers,
         loss_scaler=loss_scaler,
         lr_schedule_values=lr_schedule_values,
         log_writer=log_writer,
@@ -232,7 +235,7 @@ def main(args):
     if args.output_dir:
         utils.save_model(
             args=args, iteration=args.total_iters, model=model, model_without_ddp=model_without_ddp, 
-            optimizer=optimizer, loss_scaler=loss_scaler, ckpt_name='final', 
+            optimizers=optimizers, loss_scaler=loss_scaler, ckpt_name='final', 
             save_as_safetensors=True, model_args=args.model_config,
         )
 
@@ -250,7 +253,7 @@ def train_loop(
         model: torch.nn.Module,
         data_loader_train: Iterable,
         data_loader_eval: Iterable,
-        optimizer: torch.optim.Optimizer,
+        optimizers: List[torch.optim.Optimizer],
         loss_scaler: NativeScaler,
         lr_schedule_values: Sequence[float],
         log_writer: Optional[utils.WandbLogger] = None,
@@ -287,15 +290,16 @@ def train_loop(
 
         # Assign learning rate for each step
         lr = lr_schedule_values[it]
-        for i, param_group in enumerate(optimizer.param_groups):
-            param_group["lr"] = lr
+        for optimizer in optimizers:
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = lr
 
         # Loss scaling when training in fp16, backward pass, optimizer step, and synchronize
         grad_norm = loss_scaler(
-            loss, optimizer, clip_grad=args.clip_grad, skip_grad=None,
+            loss, optimizers, clip_grad=args.clip_grad, skip_grad=None,
             parameters=model.parameters(), compute_grad_norm=True,
         )
-        optimizer.zero_grad()
+        model.zero_grad()
         torch.cuda.synchronize()
 
         # Logging
@@ -334,7 +338,7 @@ def train_loop(
         if (it + 1) % args.save_ckpt_freq_iters == 0:
             utils.save_model(
                 args=args, iteration=it, model=model, model_without_ddp=unwrap_model(model),
-                optimizer=optimizer, loss_scaler=loss_scaler, save_as_safetensors=True, model_args=args.model_config,
+                optimizers=optimizers, loss_scaler=loss_scaler, save_as_safetensors=True, model_args=args.model_config,
             )
 
         # Exit training loop manually in case iterator is infinite
@@ -396,3 +400,4 @@ if __name__ == '__main__':
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     main(args)
+

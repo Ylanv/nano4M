@@ -20,76 +20,36 @@
 # https://github.com/facebookresearch/dino
 # --------------------------------------------------------
 
-import json
-
 import torch
 from torch import optim as optim
 
-
-def get_parameter_groups(model, weight_decay=1e-5, skip_list=()):
-    parameter_group_names = {}
-    parameter_group_vars = {}
-
-    for name, param in model.named_parameters():
-        # Remove wrapped module to be compatible with FSDP
-        name = name.replace("_fsdp_wrapped_module.", "")
-
-        if not param.requires_grad:
-            continue  # frozen weights
-
-        # Assign weight decay values
-        # Only norm and bias terms should have no decay
-        # Previously, this checked if (param.shape) == 1 which is incompatible with FSDP which flattens all params
-        if "norm." in name or ".norm" in name or name.endswith(".bias") or name.endswith(".lookup_table_weight") or name.endswith(".gamma") or name in skip_list:
-            group_name = "no_decay"
-            this_weight_decay = 0.
-        else:
-            group_name = "decay"
-            this_weight_decay = weight_decay
-
-        if group_name not in parameter_group_names:
-            parameter_group_names[group_name] = {
-                "weight_decay": this_weight_decay,
-                "params": [],
-            }
-            parameter_group_vars[group_name] = {
-                "weight_decay": this_weight_decay,
-                "params": [],
-            }
-
-        parameter_group_vars[group_name]["params"].append(param)
-        parameter_group_names[group_name]["params"].append(name)
-    print("Param groups = %s" % json.dumps(parameter_group_names, indent=2))
-    return list(parameter_group_vars.values())
+from nanofm.modeling.muon import Muon
 
 
-def create_adamw_optimizer(args, model, filter_bias_and_bn=True, skip_list=None):
-    weight_decay = args.weight_decay
+def create_optimizers(args, model):
+    muon_params = [p for name, p in model.named_parameters() if p.ndim >= 2 and not "emb" in name]
+    adamw_params = [p for name, p in model.named_parameters() if p.ndim < 2 or "emb" in name]
 
-    def get_parameters(m):
-        if weight_decay and filter_bias_and_bn:
-            skip = {}
-            if skip_list is not None:
-                skip = skip_list
-            elif hasattr(m, 'no_weight_decay'):
-                skip = m.no_weight_decay()
-            parameters = get_parameter_groups(m, weight_decay, skip)
-            wd = 0.
-        else:
-            parameters = m.parameters()
-            wd = weight_decay
-        return parameters, wd
-    
-    parameters, weight_decay = get_parameters(model)
-
-    opt_args = dict(lr=args.lr, weight_decay=weight_decay)
+    adamw_opt_args = dict(lr=args.lr)
     if hasattr(args, 'opt_eps') and args.opt_eps is not None:
-        opt_args['eps'] = args.opt_eps
+        adamw_opt_args['eps'] = args.opt_eps
     if hasattr(args, 'opt_betas') and args.opt_betas is not None:
-        opt_args['betas'] = args.opt_betas
+        adamw_opt_args['betas'] = args.opt_betas
 
-    print("optimizer settings:", opt_args)
+    muon_opt_args = dict(lr=args.lr)
+    if hasattr(args, 'momentum') and args.momentum is not None:
+        muon_opt_args['momentum'] = args.momentum
+    if hasattr(args, 'global_rank') and args.global_rank is not None:
+        muon_opt_args['rank'] = args.global_rank
+    if hasattr(args, 'world_size') and args.world_size is not None:
+        muon_opt_args['world_size'] = args.world_size
 
-    optimizer = optim.AdamW(parameters, **opt_args)
+    print("AdamW optimizer settings:", adamw_opt_args)
+    print("Muon optimizer settings:", muon_opt_args)
 
-    return optimizer
+    optimizers = [
+        Muon(muon_params, **muon_opt_args),
+        optim.AdamW(adamw_params, **adamw_opt_args),
+    ]
+
+    return optimizers
