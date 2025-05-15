@@ -103,7 +103,8 @@ class Attention(nn.Module):
 
         self.attn_out_proj = nn.Linear(dim, dim, bias=proj_bias)
 
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask : Optional[torch.Tensor] = None, rotary_emb:
+                Optional[nn.Module] = None, input_pos: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, L, D = x.shape # Batch size, sequence length, and dimension
 
         # TODO: Compute the keys K, queries Q, and values V from x. Each should be of shape [B num_heads L head_dim].
@@ -123,6 +124,9 @@ class Attention(nn.Module):
         assert k.shape == (B,self.num_heads,L,self.head_dim), f"Shape of K is not correct should be ({B},{self.num_heads},{L},{self.head_dim})"
         assert v.shape == (B,self.num_heads,L,self.head_dim), f"Shape of V is not correct should be ({B},{self.num_heads},{L},{self.head_dim})"
         
+        if rotary_emb is not None:
+            q = rearrange(rotary_emb(rearrange(q, "b h l d -> b l h d"), input_pos=input_pos), "b l h d -> b h l d")
+            k = rearrange(rotary_emb(rearrange(k, "b h l d -> b l h d"), input_pos=input_pos), "b l h d -> b h l d")
         
         # TODO: Compute the attention matrix (pre softmax) and scale it by 1/sqrt(d_k). It should be of shape [B num_heads L L].
         # Hint: Use the already defined self.scale
@@ -177,7 +181,8 @@ class CrossAttention(nn.Module):
 
         self.attn_out_proj = nn.Linear(dim, dim, bias=proj_bias)
 
-    def forward(self, x: torch.Tensor, context: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, context: torch.Tensor, mask: Optional[torch.Tensor] = None,
+                rotary_emb: Optional[nn.Module] = None, input_pos: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, N, C = x.shape # Batch size, x sequence length (N), and dimension
         _, M, _ = context.shape # _, context sequence length (M), _
 
@@ -198,6 +203,10 @@ class CrossAttention(nn.Module):
             f"K wrong shape : {k.shape}"
         assert v.shape == (B,self.num_heads,M,self.head_dim), \
             f"K wrong shape : {v.shape}"
+
+        if rotary_emb is not None:
+            q = rearrange(rotary_emb(rearrange(q, "b h l d -> b l h d"), input_pos=input_pos), "b l h d -> b h l d")
+            k = rearrange(rotary_emb(rearrange(k, "b h l d -> b l h d"), input_pos=input_pos), "b l h d -> b h l d")
             
         # TODO: Compute the attention matrix (pre softmax) and scale it by 1/sqrt(d_k). It should be of shape [B num_heads N M].
         # Hint: Use the already defined self.scale
@@ -249,14 +258,15 @@ class Block(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim,hidden_features=mlp_hidden_dim,out_features=dim,bias=use_bias) 
 
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, rotary_emb:
+                Optional[nn.Module] = None, input_pos: Optional[torch.Tensor] = None) -> torch.Tensor:
         assert x.dim() == 3, f"Expected input tensor x to have 3 dimensions (B, L, D), got {x.dim()}"
         B,L,D = x.shape
         
         n1 = self.norm1(x)
         assert n1.shape == (B,L,D), f"LayerNom1 changed the Input shape"
         
-        x_a = x + self.attn(n1,mask)
+        x_a = x + self.attn(n1, mask, rotary_emb, input_pos)
         assert x_a.shape == (B,L,D), f"Attn layer changed the Input shape"
         
         
@@ -302,6 +312,8 @@ class DecoderBlock(nn.Module):
             context: torch.Tensor, 
             sa_mask: Optional[torch.Tensor] = None, # Self-attention mask
             xa_mask: Optional[torch.Tensor] = None, # Cross-attention mask
+            rotary_emb: Optional[nn.Module] = None,
+            input_pos: Optional[torch.Tensor] = None,
         ) -> torch.Tensor:
 
         # Self-attention, then cross-attention, then MLP
@@ -309,8 +321,8 @@ class DecoderBlock(nn.Module):
         # and the cross-attention mask (xa_mask) to the cross-attention layer.
         # Don't forget to add the residual connections after each layer, and
         # to apply the normalizations on the inputs of each layer.
-        xa = x + self.self_attn(self.norm1(x),sa_mask)
-        xb = xa + self.cross_attn(self.query_norm(xa),self.context_norm(context),xa_mask)
+        xa = x + self.self_attn(self.norm1(x), sa_mask, rotary_emb, input_pos)
+        xb = xa + self.cross_attn(self.query_norm(xa), self.context_norm(context), xa_mask, rotary_emb, input_pos)
         xc = xb + self.mlp(self.norm2(xb))
         return xc
         
@@ -338,10 +350,11 @@ class TransformerTrunk(nn.Module):
 
         self.blocks = nn.ModuleList([Block(dim=dim,head_dim=head_dim,mlp_ratio=mlp_ratio,use_bias=use_bias) for _ in range(depth)])
     
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, rotary_emb:
+                Optional[nn.Module] = None, input_pos: Optional[torch.Tensor] = None) -> torch.Tensor:
         
         for block in self.blocks:
-            x = block(x,mask)            
+            x = block(x, mask, rotary_emb, input_pos)
         return x
 
 class TransformerDecoderTrunk(nn.Module):
@@ -378,11 +391,13 @@ class TransformerDecoderTrunk(nn.Module):
             context: torch.Tensor, 
             sa_mask: Optional[torch.Tensor] = None, # Self-attention mask
             xa_mask: Optional[torch.Tensor] = None, # Cross-attention mask
+            rotary_emb: Optional[nn.Module] = None,
+            input_pos: Optional[torch.Tensor] = None,
         ) -> torch.Tensor:
         
         for block in self.blocks:
             if isinstance(block, DecoderBlock):
-                x = block(x, context,sa_mask,xa_mask)
+                x = block(x, context, sa_mask, xa_mask, rotary_emb, input_pos)
             else:  # Block (self-attn only)
-                x = block(x, mask=sa_mask)
+                x = block(x, sa_mask, rotary_emb, input_pos)
         return x

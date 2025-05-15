@@ -20,22 +20,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import repeat
 
+from nanofm.modeling.rope import RotaryPositionalEmbeddings, VisionRotaryPositionalEmbeddings
 from nanofm.modeling.transformer_layers import TransformerTrunk, TransformerDecoderTrunk, LayerNorm
 from nanofm.utils.sampling import sample_tokens
-
-
-def build_1d_sincos_posemb(max_len, embed_dim=1024, temperature=10000.):
-    """Sine-cosine positional embeddings from MoCo-v3, adapted back to 1d.
-    Returns positional embedding of shape (N, D)
-    """
-    arange = torch.arange(max_len, dtype=torch.float32) # Shape (N,)
-    assert embed_dim % 2 == 0, 'Embed dimension must be divisible by 2 for 1D sin-cos position embedding'
-    pos_dim = embed_dim // 2
-    omega = torch.arange(pos_dim, dtype=torch.float32) / pos_dim # Shape (D/2,)
-    omega = 1. / (temperature ** omega)
-    out = torch.einsum('n,d->nd', [arange, omega]) # Outer product, shape (N, D/2)
-    pos_emb = torch.cat([torch.sin(out), torch.cos(out)], dim=1) # Shape (N, D)
-    return pos_emb
 
 
 class FourM(nn.Module):
@@ -111,9 +98,13 @@ class FourM(nn.Module):
         # Initialize encoder token embedding
         self.enc_tok_emb = nn.Embedding(self.vocab_size,dim) # TODO: Define the input embedding layer using self.vocab_size
 
-        # Initialize positional embeddings of predefined maximum length that we re-use for different modalities
-        pos_emb = build_1d_sincos_posemb(self.max_posemb_len, dim)
-        self.register_buffer("pos_emb", pos_emb)
+        # self.rotary_emb = RotaryPositionalEmbeddings(dim=head_dim, max_seq_lens=self.max_posemb_len)
+        self.rotary_emb = VisionRotaryPositionalEmbeddings(
+            patch_size=16, # We have 16x16 patches
+            tile_size=self.max_posemb_len,
+            dim=head_dim // 2,
+            append_cls_token=False, # I think the CLS is the first element.
+        )
 
         # Initialize modality embeddings
         self.enc_mod_emb = nn.Embedding(self.num_modalities,dim) # TODO: Define the encoder modality embedding layer using self.num_modalities
@@ -177,7 +168,7 @@ class FourM(nn.Module):
         enc_input_modalities: torch.LongTensor,
         enc_input_positions: torch.LongTensor,
         enc_pad_mask: Optional[torch.BoolTensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         """
         Forward pass through the encoder.
 
@@ -190,8 +181,7 @@ class FourM(nn.Module):
             enc_pad_mask: Boolean tensor of shape (B, N) where True indicates a valid token,
                 and False indicates a padded token.
         Returns:
-            Encoded tokens tensor of shape (B, N, D) and corresponding positional embeddings 
-            tensor of shape (B, N, D).
+            Encoded tokens tensor of shape (B, N, D).
         """
         B, N = enc_input_tokens.shape
 
@@ -202,29 +192,23 @@ class FourM(nn.Module):
         # Sum the modality embeddings to the token embeddings.
         x = x + self.enc_mod_emb(enc_input_modalities)
 
-        # TODO: Get the positional embeddings for the input positions `enc_input_positions` and add them to the input tokens. Shape: [B, N, D]
-        # Sum the positional embeddings to the token embeddings.
-        enc_posembs = self.pos_emb[enc_input_positions]
-        x = x + enc_posembs
-
         # Construct (B, N, N) attention mask for padding. True = used, False = masked out.
         enc_pad_attn_mask = repeat(enc_pad_mask, 'b n -> b m n', m=N) if enc_pad_mask is not None else None
 
         # TODO: Forward pass through the Transformer encoder. Shape [B, N, D]
         # Hint: Don't forget to pass the encoder attention mask `enc_pad_attn_mask`.
-        x = self.encoder(x,enc_pad_attn_mask)
+        x = self.encoder(x,enc_pad_attn_mask, self.rotary_emb, enc_input_positions)
 
         # TODO: Pass to the encoder output normalization layer
         x = self.enc_norm(x)
 
-        return x, enc_posembs
+        return x
 
     def forward_decoder(
         self,
         dec_input_modalities: torch.LongTensor,
         dec_input_positions: torch.LongTensor,
         enc_context: torch.Tensor,
-        enc_posembs: torch.Tensor,
         enc_pad_mask: Optional[torch.BoolTensor] = None,
         dec_pad_mask: Optional[torch.BoolTensor] = None,
     ) -> torch.Tensor:
@@ -238,7 +222,6 @@ class FourM(nn.Module):
                 used to get the corresponding positional embeddings and specify which token
                 to predict for each modality.
             enc_context: Tensor of shape (B, N, D) with encoder context tokens.
-            enc_posembs: Tensor of shape (B, N, D) with encoder positional embeddings.
             enc_pad_mask: Boolean tensor of shape (B, N) where True indicates a valid token,
                 and False indicates a padded token.
             dec_pad_mask: Boolean tensor of shape (B, M) where True indicates a valid token,
@@ -252,10 +235,6 @@ class FourM(nn.Module):
         # TODO: Embed the target modality IDs `dec_input_modalities` using the embedding layer `dec_mod_emb`. Shape: [B, M, D]
         x = self.dec_mod_emb(dec_input_modalities)
 
-        # TODO: Get the positional embeddings for the target positions `dec_input_positions` and add them to the tokens. Shape: [B, M, D]
-        # Sum the positional embeddings to the token embeddings.
-        x = x + self.pos_emb[dec_input_positions]
-
         # Construct attention masks for padding. True = used, False = masked out.
         # [B, M, M] self-attention mask and [B, M, N] cross-attention mask
         dec_pad_sa_mask = repeat(dec_pad_mask, 'b m -> b n m', n=M) if dec_pad_mask is not None else None
@@ -264,12 +243,9 @@ class FourM(nn.Module):
         # TODO: Project context `enc_context` to the decoder dimension using `dec_context_proj`. Shape: [B, N, D] 
         context = self.dec_context_proj(enc_context)
 
-        # Add the encoder positional embeddings `enc_posembs`. Shape: [B, N, D]
-        context = context + enc_posembs
-
         # TODO: Pass through the Transformer decoder. Shape [B, M, D]
         # Hint: Don't forget to pass the decoder self-attention mask `dec_pad_sa_mask` and the cross-attention mask `dec_pad_xa_mask`.
-        x = self.decoder(x,context,dec_pad_sa_mask,dec_pad_xa_mask)
+        x = self.decoder(x,context,dec_pad_sa_mask,dec_pad_xa_mask, self.rotary_emb, dec_input_positions)
 
         # TODO: Pass to the decoder output normalization layer
         x = self.dec_norm(x)
@@ -288,10 +264,10 @@ class FourM(nn.Module):
         ) -> torch.Tensor:
 
         # Encoder forward pass
-        enc_x, enc_posembs = self.forward_encoder(enc_input_tokens, enc_input_modalities, enc_input_positions, enc_pad_mask)
+        enc_x = self.forward_encoder(enc_input_tokens, enc_input_modalities, enc_input_positions, enc_pad_mask)
 
         # Decoder forward pass
-        dec_x = self.forward_decoder(dec_input_modalities, dec_input_positions, enc_x, enc_posembs, enc_pad_mask, dec_pad_mask)
+        dec_x = self.forward_decoder(dec_input_modalities, dec_input_positions, enc_x, enc_pad_mask, dec_pad_mask)
 
         # TODO: Pass `dec_x` through linear output head `to_logits` to compute the logits. Shape: [B, M, vocab_size]
         logits = self.to_logits(dec_x)
