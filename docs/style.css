@@ -1,0 +1,37 @@
+body {
+  font-family: "Helvetica Neue", sans-serif;
+  margin: 2em auto;
+  max-width: 800px;
+  line-height: 1.6;
+  padding: 0 1em;
+  background: #fff;
+  color: #222;
+}
+
+header h1 {
+  font-size: 2em;
+  margin-bottom: 0.2em;
+}
+
+header p {
+  margin-top: 0;
+  font-size: 1em;
+}
+
+h2 {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.3em;
+  margin-top: 2em;
+}
+
+audio {
+  margin-top: 0.5em;
+}
+
+footer {
+  margin-top: 3em;
+  font-size: 0.9em;
+  color: #666;
+  border-top: 1px solid #eee;
+  padding-top: 1em;
+}

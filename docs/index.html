@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WaveNet Conditioned on VQ-VAE Latents</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>WaveNet Conditioned on VQ-VAE Latents</h1>
+    <p><strong>Ylanv</strong><br>
+    <a href="https://github.com/Ylanv/nano4m">[Code]</a>
+    <!-- <a href="https://arxiv.org/abs/your-paper-id">[Paper]</a> -->
+    </p>
+  </header>
+
+  <section>
+    <h2>Abstract</h2>
+    <p>
+      We present a WaveNet vocoder conditioned on the discrete latent embeddings
+      from a VQ-VAE, trained for high-fidelity audio generation. The model
+      learns a probabilistic distribution over raw waveforms, capturing fine temporal structure
+      in audio data. We analyze training behavior, evaluate synthesis quality, and
+      discuss practical considerations for scaling and deployment.
+    </p>
+  </section>
+
+  <section>
+    <h2>Audio Samples</h2>
+    <ul>
+      <li><strong>Original Audio:</strong> <audio controls src="samples/original.wav"></audio></li>
+      <li><strong>Reconstructed (VQ-VAE + WaveNet):</strong> <audio controls src="samples/recon.wav"></audio></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Model Overview</h2>
+    <p>
+      The model follows a two-stage pipeline: first, a VQ-VAE encodes the input
+      into discrete latents; second, a WaveNet is trained to reconstruct raw audio
+      conditioned on those latents. Training uses a mixture of logistics loss over waveform samples.
+    </p>
+    <img src="architecture.png" alt="Model Architecture" width="600">
+  </section>
+
+  <section>
+    <h2>Results</h2>
+    <p>
+      The model demonstrates strong qualitative performance on 2-second clips sampled at 16kHz,
+      with significant improvements in generation quality compared to baseline waveform models.
+    </p>
+  </section>
+
+  <footer>
+    <p>© 2025 Ylanv. Hosted on <a href="https://github.com/Ylanv/nano4m">GitHub</a>.</p>
+  </footer>
+
+</body>
+</html>
