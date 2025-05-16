@@ -2,60 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WaveNet Conditioned on VQ-VAE Latents</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="style.css">
+  <title>nano4M – Audio Modality Extension</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      line-height: 1.6;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    h1, h2, h3 {
+      color: #2c3e50;
+    }
+    a {
+      color: #2980b9;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .section {
+      margin-bottom: 40px;
+    }
+  </style>
 </head>
 <body>
+  <h1>nano4M – Adding Audio Modality to a Multimodal Foundation Model</h1>
 
-  <header>
-    <h1>WaveNet Conditioned on VQ-VAE Latents</h1>
-    <p><strong>Ylanv</strong><br>
-    <a href="https://github.com/Ylanv/nano4m">[Code]</a>
-    <!-- <a href="https://arxiv.org/abs/your-paper-id">[Paper]</a> -->
-    </p>
-  </header>
+  <div class="section">
+    <h2>Overview</h2>
+    <p>This project extends <strong>nano4M</strong>, a compact variant of the <a href="#">4M</a> multimodal foundation model, by incorporating <strong>audio</strong> as an additional modality. Our goal is to push the boundaries of small-scale multimodal models by exploring whether audio integration during training enhances <strong>cross-modal transfer capabilities</strong> particularly in tasks such as <strong>Text-to-Speech (TTS)</strong>.</p>.</p>
+  </div>
 
-  <section>
-    <h2>Abstract</h2>
-    <p>
-      We present a WaveNet vocoder conditioned on the discrete latent embeddings
-      from a VQ-VAE, trained for high-fidelity audio generation. The model
-      learns a probabilistic distribution over raw waveforms, capturing fine temporal structure
-      in audio data. We analyze training behavior, evaluate synthesis quality, and
-      discuss practical considerations for scaling and deployment.
-    </p>
-  </section>
-
-  <section>
-    <h2>Audio Samples</h2>
+  <div class="section">
+    <h2>Research Hypothesis</h2>
+    <p>We hypothesize that training nano4M with audio inputs, in addition to vision and language, will:</p>
     <ul>
-      <li><strong>Original Audio:</strong> <audio controls src="samples/original.wav"></audio></li>
-      <li><strong>Reconstructed (VQ-VAE + WaveNet):</strong> <audio controls src="samples/recon.wav"></audio></li>
+      <li>Improve the model’s <strong>generalization across modalities</strong>.</li>
+      <li>Enable <strong>emergent capabilities</strong> in audio-based generation tasks.</li>
+      <li>Showcase <strong>transfer learning potential</strong>, particularly in TTS applications.</li>
     </ul>
-  </section>
+  </div>
 
-  <section>
-    <h2>Model Overview</h2>
-    <p>
-      The model follows a two-stage pipeline: first, a VQ-VAE encodes the input
-      into discrete latents; second, a WaveNet is trained to reconstruct raw audio
-      conditioned on those latents. Training uses a mixture of logistics loss over waveform samples.
-    </p>
-    <img src="architecture.png" alt="Model Architecture" width="600">
-  </section>
+  <div class="section">
+    <h2>Methodology</h2>
+    <h3>1. Audio Tokenization</h3>
+    <p>We implemented a <a href="#">vector-quantized variational autoencoder (VQ-VAE)</a> to discretize raw audio into compact token sequences. This tokenizer enables audio to be treated similarly to text and image tokens during training.</p>
 
-  <section>
-    <h2>Results</h2>
-    <p>
-      The model demonstrates strong qualitative performance on 2-second clips sampled at 16kHz,
-      with significant improvements in generation quality compared to baseline waveform models.
-    </p>
-  </section>
+    <h3>2. Dataset Creation</h3>
+    <p>We constructed a custom aligned multimodal dataset that includes:</p>
+    <ul>
+      <li>Text</li>
+      <li>Corresponding audio</li>
+      <li>Images generated to match the text descriptions</li>
+    </ul>
+    <p>This alignment enables the model to learn rich semantic correspondences across modalities.</p>
 
-  <footer>
-    <p>© 2025 Ylanv. Hosted on <a href="https://github.com/Ylanv/nano4m">GitHub</a>.</p>
-  </footer>
+    <h3>3. Training</h3>
+    <p>The nano4M model was trained on the aligned text-audio-image dataset using a unified autoregressive objective. The model was exposed to varied combinations of modalities to encourage <strong>multimodal reasoning</strong> and <strong>generation</strong>.</p>
 
+    <h3>4. Evaluation</h3>
+    <p>We evaluated the trained model on <strong>zero-shot and fine-tuned</strong> transfer to audio-based tasks. Particular focus was given to <strong>Text-to-Speech (TTS)</strong>, where the model’s ability to generate audio from text was assessed.</p>
+  </div>
+
+  <div class="section">
+    <h2>Contributions</h2>
+    <ul>
+      <li>First integration of audio into the nano4M architecture.</li>
+      <li>Custom VQ-based audio tokenizer adapted for multimodal training.</li>
+      <li>Construction of a synthetic but semantically aligned multimodal dataset.</li>
+      <li>Demonstration of audio transfer learning in a compact model setting.</li>
+    </ul>
+  </div>
 </body>
 </html>
