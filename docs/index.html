@@ -70,19 +70,31 @@
     <div class="section" id="nanofm">
       <h2>Nano4M & Extras</h2>
       <p>
-        For this project, we built our own multimodal dataset based on <strong>AudioCaps</strong>, and tokenized it using three different tokenizers:
+        We used the <strong>AudioCaps</strong> dataset mentioned above to train our multimodal model, <strong>nano4M</strong>. To do this, we applied three different tokenization strategies:
       </p>
       <ul>
+        <li><strong>GPT-2</strong> for the text captions,</li>
         <li><strong>Cosmos</strong> for RGB images (patch-based tokenization),</li>
-        <li><strong>GPT-2</strong> for text captions,</li>
-        <li>and our own <strong>custom VQ-VAE</strong> tokenizer for audio.</li>
+        <li>and our own <strong>VQ-VAE-based tokenizer</strong> for the audio.</li>
       </ul>
       <p>
-        After tokenizing the entire dataset, we trained our model using the <strong>nano4M architecture</strong>, which is a compact multimodal foundation model based on a masked Transformer encoder.
-        The training objective allowed the model to learn joint representations by masking and predicting across modalities (text, audio, and image).
+        Once the dataset was fully tokenized, we trained our model using the <strong>nano4M architecture</strong>, which is based on a <strong>masked Transformer</strong>. This means that during training, we intentionally hide some parts of the input — and ask the model to guess what’s missing. MANQUE IMAGE ARCHITECTURE
       </p>
       <p>
-        The result is a lightweight but versatile model capable of handling cross-modal reasoning and generation, including early experiments in text-to-audio synthesis.
+        These missing parts can come from <strong>any of the three modalities</strong>: text (words), audio (sound tokens), or image (patches). The model has to make predictions using the remaining available information from the other parts — and possibly from the other modalities.
+      </p>
+      <p>
+        For example, if we hide a piece of audio, the model can try to guess it using the corresponding image and caption. If we hide a word from the text, the model can use the sound and visual context to find what fits best.
+      </p>
+      <p>
+        By repeating this process many times, the model learns to <strong>connect and understand</strong> how text, images, and audio relate to each other. This helps it build a <strong>shared representation</strong> of all three, and allows it to do things like <em>generate sound from text</em>, or <em>use audio to help interpret an image</em>.
+      </p>
+      <p>
+        As a result, we obtained a <strong>lightweight but versatile model</strong> that can perform basic reasoning across modalities. Our early experiments show promising results, especially in tasks like <em>text-to-audio generation</em> and <em>cross-modal completion</em>.
+      </p>
+      <p>
+        <strong>Below are some of the results we obtained during our evaluation.</strong>
+        MANQUE RESULTATS
       </p>
     </div>
     <div class="section" id="conclusion">
