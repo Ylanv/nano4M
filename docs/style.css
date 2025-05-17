@@ -75,18 +75,19 @@ h3 {
   font-size: 1.4em;
 }
 
-/* Détail pour décaler les titres de section avec % */
-.section h2 {
-  position: relative;
-  left: -2rem;
-}
-
-
-
-/* Contenu de chaque bloc */
 .section {
-  margin-bottom: 3em;
+  max-width: 900px;
+  margin: 0 auto 3em;
+  padding: 0 1.5em;
+  margin-left: -4rem;
 }
+
+
+.section h2 {
+  position: static; /* annule le décalage gauche */
+  text-align: left;
+}
+
 
 ul {
   padding-left: 1.5em;
