@@ -13,3 +13,5 @@ audio_tokenizer/vqvae/data/inference/
 .DS_Store
 __pycache__
 .ipynb_checkpoints
+nano4M/multi_node_job.err
+nano4M/multi_node_job.out

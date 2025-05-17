@@ -98,6 +98,15 @@ class RawVQVAE(nn.Module):
         #print(f"x_hat shape:{x_hat.shape}")
         return x_hat, vq_loss
     
+    def encode(self,x):
+        # Encoder
+        z_e = self.encoder(x)
+        #print(f"z_e shape:{z_e.shape}")
+        # Quantizer
+        z_q, vq_loss = self.quantizer(z_e)
+        #print(f"z_q shape:{z_q.shape}")
+        return z_q
+    
 if __name__ == "__main__":
         x = torch.rand((16,1,32000))
         model = RawVQVAE()

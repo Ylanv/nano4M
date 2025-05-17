@@ -3,8 +3,10 @@ import torch.nn as nn
 import torchaudio
 import torchaudio.transforms as T
 import torchaudio.functional as F_audio
+import torch.nn.functional as F
 import random
 import librosa
+from pathlib import Path
 import matplotlib.pyplot as plt
 from typing import Optional
 
@@ -127,3 +129,70 @@ def visualize_spectogram(mel_features, sr, path: Optional[str] = None):
         plt.close()
     else:
         plt.show()
+
+def save_waveform_batch(
+    originals,
+    reconstructions,
+    sample_rate,
+    batch_index,
+    batch_size,
+    output_dir="audio_tokenizer/vqvae/data/inference",
+):
+    """
+    Saves original and reconstructed waveforms for each item in the batch.
+
+    Args:
+        originals (Tensor): shape (batch_size, num_channels, num_samples)
+        reconstructions (Tensor): shape (batch_size, num_channels, num_samples)
+        sample_rate (int): sampling rate (e.g., 16000)
+        batch_index (int): index of the batch
+        output_dir (str or Path): root folder for output
+    """
+    batch_folder = Path(output_dir) / f"batch_{batch_index}"
+    batch_folder.mkdir(parents=True, exist_ok=True)
+
+    # Detach tensor and put on CPU
+    orig = originals.detach().cpu()
+    recon = reconstructions.detach().cpu()
+
+    for i in range(batch_size):
+        # Extract wf from batch
+        recon_wf_i = recon[i]
+        orig_wf_i = orig[i]
+        # Create path
+        orig_path = batch_folder / f"original_{i}.wav"
+        recon_path = batch_folder / f"reconstruction_{i}.wav"
+        orig_wf_path = batch_folder / f"original_{i}.png"
+        recon_wf_path = batch_folder / f"reconstruction_{i}.png"
+        # Save
+        torchaudio.save(
+            orig_path.as_posix(),
+            orig_wf_i,
+            sample_rate,
+            encoding="PCM_F",
+            bits_per_sample=32,
+        )
+        torchaudio.save(
+            recon_path.as_posix(),
+            recon_wf_i,
+            sample_rate,
+            encoding="PCM_F",
+            bits_per_sample=32,
+        )
+        visualize_waveform(orig_wf_i, sample_rate, orig_wf_path.as_posix())
+        visualize_waveform(recon_wf_i, sample_rate, recon_wf_path.as_posix())
+        print(f"Saved item {i} of batch {batch_index} at {orig_path}")
+        
+def stft_loss(predicted_audio, target_audio, n_fft=1024, hop_length=256):
+    predicted_audio = predicted_audio.squeeze(1)  # Remove the singleton dimension
+    target_audio = target_audio.squeeze(1)  # Remove the singleton dimension
+    # Compute the STFT (magnitude spectrogram)
+    stft_pred = torch.stft(predicted_audio, n_fft=n_fft, hop_length=hop_length,return_complex=True)
+    stft_target = torch.stft(target_audio, n_fft=n_fft, hop_length=hop_length,return_complex=True)
+
+    # Magnitude of the complex spectrogram
+    mag_pred = torch.abs(stft_pred)
+    mag_target = torch.abs(stft_target)
+
+    # Compute loss as the L1 distance between magnitudes
+    return F.l1_loss(mag_pred, mag_target)
