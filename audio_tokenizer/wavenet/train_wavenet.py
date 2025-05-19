@@ -6,6 +6,8 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.cuda.amp import autocast, GradScaler
+from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
 import wandb
 from pathlib import Path
@@ -23,7 +25,7 @@ URL = "train-clean-100"
 
 # Hyperparameters
 batch_size = 64
-learning_rate = 2e-4
+learning_rate = 1e-4
 epochs = 30
 segment_duration = 2.0
 embedding_dim = 128
@@ -75,10 +77,11 @@ def main():
         upsample_conditional_features=True,
         upsample_scales=[4, 4, 4, 1]
     ).to(device)
-    wavenet = DDP(wavenet, device_ids=[local_rank],find_unused_parameters=True)
+    wavenet = DDP(wavenet, device_ids=[local_rank], find_unused_parameters=True)
 
     optimizer = torch.optim.Adam(wavenet.parameters(), lr=learning_rate)
     scaler = GradScaler()
+    scheduler = CosineAnnealingLR(optimizer, T_max=epochs * len(dataloader))
 
     # === Training Loop ===
     for epoch in range(1, epochs + 1):
@@ -100,13 +103,27 @@ def main():
                 loss = discretized_mix_logistic_loss(y_hat, waveform.transpose(1, 2), log_scale_min=-7.0)
 
             scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)  # Unscale before clipping
+            clip_grad_norm_(wavenet.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
+            scheduler.step()
 
             total_loss += loss.item()
+
             if step % log_every == 0 and global_rank == 0:
+                # Optional: log gradient norm
+                total_norm = 0.0
+                for p in wavenet.parameters():
+                    if p.grad is not None:
+                        param_norm = p.grad.data.norm(2)
+                        total_norm += param_norm.item() ** 2
+                total_norm = total_norm ** 0.5
+
                 wandb.log({
                     "step_loss": loss.item(),
+                    "learning_rate": scheduler.get_last_lr()[0],
+                    "grad_norm": total_norm,
                     "epoch": epoch,
                     "step": step + epoch * len(dataloader)
                 })
