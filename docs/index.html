@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <title>nano4M – Audio Modality Extension</title>
   <link rel="stylesheet" href="style.css">
+  <script type="text/javascript"
+    id="MathJax-script"
+    async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  </script>
+
 </head>
 <body>
 
@@ -60,7 +66,175 @@
 
     <div class="section" id="audio-tokenizer">
       <h2>Audio Tokenizer</h2>
-      <p>...</p>
+  <p>
+    As part of our effort to integrate audio into <strong>nano4M</strong>, we developed a tokenizer based on a
+    <strong>Vector Quantized Variational Autoencoder (VQ-VAE)</strong>. The goal was to obtain discrete
+    audio representations that can be used for multimodal learning alongside text and images.
+  </p>
+
+  <!-- === Architecture Diagrams === -->
+  <div class="architecture-row">
+    <h3>Model Architecture Overview</h3>
+    <p>
+      We experimented with three different audio tokenization architectures:
+      (1) VQ-VAE using mel spectrogram input and Griffin-Lim decoding,
+      (2) VQ-VAE trained directly on raw waveform,
+      and (3) VQ-VAE combined with a WaveNet decoder.
+    </p>
+    <div class="architecture-row">
+      <div class="audio-column">
+        <p><strong>Mel Spectrogram + Griffin-Lim</strong></p>
+        <img src="assets/images/snoupy.jpg" alt="VQ-VAE using mel spectrogram and Griffin-Lim" style="max-width: 100%;">
+      </div>
+      <div class="audio-column">
+        <p><strong>Raw Waveform + L1/STFT Loss</strong></p>
+        <img src="assets/images/snoupy.jpg" alt="VQ-VAE using raw waveform with L1 or STFT loss" style="max-width: 100%;">
+      </div>
+      <div class="audio-column">
+        <p><strong>Raw Waveform + WaveNet</strong></p>
+        <img src="assets/images/snoupy.jpg" alt="VQ-VAE using WaveNet decoder" style="max-width: 100%;">
+      </div>
+    </div>
+  </div>
+
+  <!-- ==== [ 1. Spectrograms ] === --> 
+  <h3>1. From Spectrograms to Tokens</h3>
+  <p>
+    We began by training a VQ-VAE on <a href="https://www.openslr.org/12" target="_blank">LibriSpeech (100h)</a>,
+    using <em>mel spectrograms</em> as input features. While reconstruction losses appeared low, the
+    resulting waveforms reconstructed using Griffin-Lim were highly distorted.
+  </p>
+
+  <!-- ==== [ Audio placeholder : Griffin] === --> 
+  <h4>Audio Sample: Original vs Griffin-Lim Reconstruction</h4>
+  <div class="audio-row">
+    <div class="audio-column">
+      <p><strong>Original</strong></p>
+      <audio controls src="audio/original_mel.wav"></audio>
+    </div>
+    <div class="audio-column">
+      <p><strong>Reconstructed (Griffin-Lim)</strong></p>
+      <audio controls src="audio/reconstructed_griffin_lim.wav"></audio>
+    </div>
+  </div>
+
+  </p>
+    This indicated that small differences in mel spectrograms result in large perceptual errors,
+    leading us to directly model waveforms instead.
+  </p>
+
+  <!-- ==== [ 1. Waveform ] === --> 
+  <h3>2. Raw Waveform Modeling</h3>
+  <p>
+    We applied L1 loss between original and reconstructed waveforms. Despite improvements, the L1 loss
+    failed to align with perceived audio quality. Adding a <strong>Short-Time Fourier Transform (STFT)</strong>
+    loss helped, but did not fully resolve the issue.
+  </p>
+
+  <!-- ==== [ Audio placeholder : Raw wf] === --> 
+  <h4>Audio Sample: Original vs VQ-VAE on raw waveform</h4>
+  <div class="audio-row">
+    <div class="audio-column">
+      <p><strong>Original</strong></p>
+      <audio controls src="audio/original_mel.wav"></audio>
+    </div>
+    <div class="audio-column">
+      <p><strong>Reconstructed (VQ-VAE raw waveform)</strong></p>
+      <audio controls src="audio/reconstructed_griffin_lim.wav"></audio>
+    </div>
+  </div>
+
+  <!-- ==== [ Image placeholder] === --> 
+<h4>Training Loss (Before and After Cosine Annealing)</h4>
+  <img src="assets/images/snoupy.jpg" alt="WaveNet loss curve before cosine annealing" style="max-width:100%; margin-top: 1em;">
+  <img src="assets/images/snoupy.jpg" alt="WaveNet loss curve after cosine annealing" style="max-width:100%; margin-top: 1em;">
+  
+  <!-- ==== [ 3. Wavenet ] === --> 
+  <h3>3. WaveNet as Decoder</h3>
+  <p>
+    To achieve higher-quality reconstructions, we replaced the VQ-VAE decoder with a
+    <strong>WaveNet</strong> conditioned on the quantized latents \(z_q(x)\). This autoregressive
+    decoder models the waveform as a product of conditional distributions:
+  </p>
+  $$
+  p(x|h) = \prod_{t=1}^{T} p(x_t | x_{1:t-1}, h),\text{ where } h = z_q(x)
+  $$
+  <p>
+    The WaveNet predicts parameters of a <em>mixture of logistic distributions</em> per timestep:
+  </p>
+  $$
+  \begin{align}
+    &p(x) =\sum_{i=1}^{K} \pi_i \cdot \text{Logistic}(x|\mu_i, \sigma_i) \\
+    &Loss_{t} = -\log(p(x_{t}))\\
+    &Loss_{total} = \sum_{t=1}^{T}Loss_{t}
+  \end{align}
+  $$
+ 
+  <!-- === WaveNet Loss Explanation === -->
+  
+  <h3>WaveNet Loss Visualization</h3>
+    <p>
+      The video below shows how each waveform point is modeled using a mixture of logistic distributions, and how the training loss is computed.
+    </p>
+    <video controls width="100%" poster="images/poster_loss_video.png">
+      <source src="videos/wavenet_loss_explained.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  
+
+  <!-- ==== [ 4. Wavenet training ] === --> 
+  <h3>4. Stabilizing Training</h3>
+  <p>
+    Initial training on the 100h subset was unstable. We added:
+  </p>
+  <ul>
+    <li>Cosine Annealing with warm restarts</li>
+    <li>Gradient Clipping</li>
+  </ul>
+  <p>
+    These changes partially stabilized learning. However, audio quality remained limited—likely due
+    to insufficient latent expressiveness.
+  </p>
+
+  <!-- ==== [ Audio placeholder : Wavenet final] === --> 
+ <h4>Audio Sample: Original vs reconstruction with Wavenet</h4>
+  <div class="audio-row">
+    <div class="audio-column">
+      <p><strong>Original</strong></p>
+      <audio controls src="audio/original_mel.wav"></audio>
+    </div>
+    <div class="audio-column">
+      <p><strong>Reconstructed (VQ-VAE raw waveform)</strong></p>
+      <audio controls src="audio/reconstructed_griffin_lim.wav"></audio>
+    </div>
+  </div>
+
+  <!-- ==== [ Image placeholder] === --> 
+<h4>Training Loss of Wavenet</h4>
+  <img src="assets/images/snoupy.jpg" alt="WaveNet loss curve before cosine annealing" style="max-width:100%; margin-top: 1em;">
+  <img src="assets/images/snoupy.jpg" alt="WaveNet loss curve after cosine annealing" style="max-width:100%; margin-top: 1em;">
+
+<!-- ==== [ Video full pipeline] === --> 
+  <h3>Tokenizer training</h3>
+    <p>
+    This animation shows the entire audio transformation flow: from raw waveform input to discrete latent representation and back through WaveNet reconstruction.
+    </p>
+    <video controls width="100%" poster="images/poster_loss_video.png">
+      <source src="videos/wavenet_loss_explained.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+
+  <!-- ==== [ Summary and future work ] === --> 
+  <h3>7. Summary</h3>
+  <p>
+    Our experiments showed that high-quality waveform reconstruction from discrete tokens is
+    challenging. L1 and STFT losses are insufficient alone; autoregressive models like WaveNet help,
+    but depend heavily on latent quality and training stability.
+  </p>
+  <p>
+    Future work includes exploring <strong>HiFi-GAN</strong> or <strong>WaveRNN</strong> as decoders, and adding perceptual
+    losses for better alignment with human judgments.
+  </p>
     </div>
 
     <div class="section" id="dataset">

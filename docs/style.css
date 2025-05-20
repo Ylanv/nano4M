@@ -171,3 +171,30 @@ code {
   transform: translateY(-6px);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
+
+.audio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2em;
+  margin-top: 1em;
+  align-items: center;
+}
+
+.audio-column {
+  flex: 1 1 300px;
+  min-width: 250px;
+}
+
+.architecture-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2em;
+  justify-content: space-between;
+  margin-top: 0.5em;
+}
+
+.architecture-row .audio-column {
+  flex: 1 1 30%;
+  min-width: 250px;
+  text-align: center;
+}
