@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=snoupy
-#SBATCH --time=12:00:00
+#SBATCH --job-name=wavenet-360
+#SBATCH --time=20:00:00
 #SBATCH --account=com-304
 #SBATCH --qos=com-304
 #SBATCH --gres=gpu:2
@@ -12,7 +12,7 @@
 #SBATCH --error=multi_node_job.err
 
 # === Accept arguments ===
-WANDB_KEY=$1        # Second argument
+WANDB_KEY=$1        
 
 
 # === Initialization ===
@@ -41,4 +41,4 @@ srun bash -c "
   echo \${SLURMD_NODENAME}
 
   PYTHONPATH=. torchrun \${TORCHRUN_ARGS} audio_tokenizer/wavenet/train_wavenet.py
-"d
+"

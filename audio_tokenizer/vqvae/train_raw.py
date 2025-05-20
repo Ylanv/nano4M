@@ -11,12 +11,14 @@ from torch.cuda.amp.grad_scaler import GradScaler
 from pathlib import Path
 from tqdm import tqdm
 import wandb
-from audio_tokenizer.vqvae.visualize import stft_loss
+from audio_tokenizer.vqvae.data.audio_utils import stft_loss
 from audio_tokenizer.vqvae.models.vqvae import RawVQVAE
 from audio_tokenizer.vqvae.data.dataset import LibriSpeechMelDataset
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+from torch.utils.data import random_split
 
 # Hyperparameters
-batch_size = 128
+batch_size = 256
 learning_rate = 2e-4
 epochs = 30
 sample_rate = 16000
@@ -28,7 +30,7 @@ num_embeddings = 512
 
 SAVE_MODEL_PATH = "audio_tokenizer/vqvae/save/"
 DATASET_PATH = "/work/com-304/snoupy/librispeech/"
-URL = "train-clean-100"
+URL = "train-clean-360"
 save_folder = Path(SAVE_MODEL_PATH)
 save_folder.mkdir(parents=True, exist_ok=True)
 
@@ -59,22 +61,35 @@ def main():
         url=URL,
         segment_duration=segment_duration,
     )
-    sampler = DistributedSampler(dataset)
-    dataloader = DataLoader(dataset, batch_size=batch_size, sampler=sampler, num_workers=1)
+        # Split train/val 
+    val_ratio = 0.1
+    total_len = len(dataset)
+    val_len = int(val_ratio * total_len)
+    train_len = total_len - val_len
+    
+    train_dataset,val_dataset = random_split(dataset,[train_len,val_len])
+    
+    # Train dataset
+    train_sampler = DistributedSampler(train_dataset)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, num_workers=2, pin_memory=True)
 
+    # Val dataset
+    val_sampler = DistributedSampler(val_dataset,shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, num_workers=2, pin_memory=True)  
+  
     model = RawVQVAE(embedding_dim=embedding_dim, num_embeddings=num_embeddings).cuda()
     model = DDP(model, device_ids=[local_rank])
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     recon_loss_fn = nn.L1Loss()
     scaler = GradScaler()
-    
+    scheduler = CosineAnnealingWarmRestarts(optimizer,T_0 = 5*len(train_dataloader),T_mult=1)
     for epoch in range(epochs):
         model.train()
-        sampler.set_epoch(epoch)
+        train_sampler.set_epoch(epoch)
         running_loss = 0.0
 
-        for step, batch in enumerate(tqdm(dataloader, disable=local_rank != 0)):
+        for step, batch in enumerate(tqdm(train_dataloader, disable=local_rank != 0)):
             waveform, sr, txt = batch
             waveform = waveform.cuda(non_blocking=True)
             waveform = waveform / waveform.abs().max(dim=-1, keepdim=True)[0].clamp(min=1e-5)
@@ -90,6 +105,7 @@ def main():
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
+            scheduler.step()
 
             running_loss += loss.item()
 
@@ -100,13 +116,39 @@ def main():
                     "loss/vq": vq_loss.item(),
                     "loss/sftf" : loss_sftf.item(),
                     "epoch": epoch,
-                    "step": epoch * len(dataloader) + step,
+                    "step": epoch * len(train_dataloader) + step,
+                    "learning_rate" : scheduler.get_last_lr()[0]
                 })
+        
+        # Validation Loss
+        val_loss = 0.0
+        model.eval()
+        with torch.no_grad():
+            for val_batch in val_dataloader:
+                waveform, sr, txt = val_batch
+                waveform = waveform.cuda(non_blocking=True)
+                waveform = waveform / waveform.abs().max(dim=-1, keepdim=True)[0].clamp(min=1e-5)
 
+                optimizer.zero_grad()
+
+                with autocast():
+                    x_recon, vq_loss = model(waveform)
+                    recon_loss = recon_loss_fn(x_recon, waveform)
+                    loss_sftf = stft_loss(x_recon, waveform)
+                    loss = recon_loss + vq_loss + loss_sftf
+                
+                val_loss += loss.item()
+        val_loss /= len(val_dataloader)
+        avg_loss = running_loss / len(train_dataloader)
         if local_rank == 0:
-            print(f"Epoch [{epoch+1}] avg loss: {running_loss / len(dataloader):.4f}")
+            wandb.log({
+                "epoch_loss": avg_loss,
+                "epoch": epoch,
+                "val_loss":val_loss
+            })
+            print(f"Epoch [{epoch+1}] | avg loss: {avg_loss} | val loss : {val_loss}")
             if (epoch + 1) % save_every == 0:
-                torch.save(model.module.state_dict(), save_folder / f"vqvae_epoch{epoch+1}.pt")
+                torch.save(model.module.state_dict(), save_folder / f"360_epoch{epoch+1}.pt")
 
     if local_rank == 0:
         wandb.finish()

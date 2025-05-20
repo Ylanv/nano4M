@@ -7,6 +7,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.cuda.amp import autocast, GradScaler
 from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
 import wandb
@@ -16,12 +17,13 @@ from wavenet_vocoder.wavenet import WaveNet
 from wavenet_vocoder.mixture import discretized_mix_logistic_loss
 from audio_tokenizer.vqvae.models.vqvae import RawVQVAE
 from audio_tokenizer.vqvae.data.dataset import LibriSpeechMelDataset
+from torch.utils.data import random_split
 
 # Paths & Constants
-LOAD_MODEL_PATH = "/work/com-304/snoupy/weights/vqvae/vqvae_epoch30.pt"
+LOAD_MODEL_PATH = "audio_tokenizer/vqvae/save/360_epoch30.pt"
 SAVE_MODEL_PATH = Path("/work/com-304/snoupy/weights/wavenet")
 DATASET_PATH = Path("/work/com-304/snoupy/librispeech/")
-URL = "train-clean-100"
+URL = "train-clean-360"
 
 # Hyperparameters
 batch_size = 64
@@ -35,6 +37,10 @@ save_every = 1
 
 
 def main():
+    
+    # Print number of GPU 
+    print("GPUs visible to this process:", torch.cuda.device_count())
+    
     # === DDP Setup ===
     local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
@@ -44,19 +50,39 @@ def main():
 
     # === WandB Setup ===
     if global_rank == 0:
-        wandb.init(project="wavenet-vqvae", name="train-wavenet-ddp", config={
-            "learning_rate": learning_rate,
-            "batch_size": batch_size,
-            "epochs": epochs,
-            "embedding_dim": embedding_dim,
-            "num_embeddings": num_embeddings
-        })
+        wandb.init(
+            entity="scoobyfam",
+            project="wavenet-vqvae", 
+            name="train-wavenet-ddp", 
+            config={
+                "learning_rate": learning_rate,
+                "batch_size": batch_size,
+                "epochs": epochs,
+                "embedding_dim": embedding_dim,
+                "num_embeddings": num_embeddings
+            }
+        )
 
     # === Data ===
+    # Dataset
     dataset = LibriSpeechMelDataset(root=DATASET_PATH, url=URL, segment_duration=segment_duration)
-    sampler = DistributedSampler(dataset)
-    dataloader = DataLoader(dataset, batch_size=batch_size, sampler=sampler, num_workers=2, pin_memory=True)
+    
+    # Split train/val 
+    val_ratio = 0.1
+    total_len = len(dataset)
+    val_len = int(val_ratio * total_len)
+    train_len = total_len - val_len
+    
+    train_dataset,val_dataset = random_split(dataset,[train_len,val_len])
+    
+    # Train dataset
+    train_sampler = DistributedSampler(train_dataset)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, num_workers=2, pin_memory=True)
 
+    # Val dataset
+    val_sampler = DistributedSampler(val_dataset,shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, sampler=val_sampler, num_workers=2, pin_memory=True)
+    
     # === VQ-VAE Encoder (frozen) ===
     vqvae = RawVQVAE(embedding_dim=embedding_dim, num_embeddings=num_embeddings).to(device)
     vqvae.load_state_dict(torch.load(LOAD_MODEL_PATH, map_location=device))
@@ -81,15 +107,16 @@ def main():
 
     optimizer = torch.optim.Adam(wavenet.parameters(), lr=learning_rate)
     scaler = GradScaler()
-    scheduler = CosineAnnealingLR(optimizer, T_max=epochs * len(dataloader))
+    # Warm restart 5 epoch to avoid stagnation
+    scheduler = CosineAnnealingWarmRestarts(optimizer,T_0 = 5*len(train_dataloader),T_mult=1)
 
     # === Training Loop ===
     for epoch in range(1, epochs + 1):
-        sampler.set_epoch(epoch)
+        train_sampler.set_epoch(epoch)
         wavenet.train()
         total_loss = 0.0
 
-        for step, batch in enumerate(tqdm(dataloader, disable=global_rank != 0, desc=f"Epoch {epoch}")):
+        for step, batch in enumerate(tqdm(train_dataloader, disable=global_rank != 0, desc=f"Epoch {epoch}")):
             waveform, _, _ = batch
             waveform = waveform.to(device, non_blocking=True)
             waveform = waveform / waveform.abs().max(dim=-1, keepdim=True)[0].clamp(min=1e-5)
@@ -104,7 +131,6 @@ def main():
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)  # Unscale before clipping
-            clip_grad_norm_(wavenet.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
@@ -125,18 +151,42 @@ def main():
                     "learning_rate": scheduler.get_last_lr()[0],
                     "grad_norm": total_norm,
                     "epoch": epoch,
-                    "step": step + epoch * len(dataloader)
+                    "step": step + epoch * len(train_dataloader)
                 })
+            
+            clip_grad_norm_(wavenet.parameters(), max_norm=1.0)
 
-        avg_loss = total_loss / len(dataloader)
+        # Validation loss per epoch 
+        val_loss = 0.0
+        wavenet.eval()
+        with torch.no_grad():
+            for val_batch in val_dataloader:
+                waveform, _, _ = val_batch
+                waveform = waveform.to(device, non_blocking=True)
+                waveform = waveform / waveform.abs().max(dim=-1, keepdim=True)[0].clamp(min=1e-5)
+
+                z_q = vqvae.encode(waveform)
+                y_hat = wavenet(waveform, c=z_q)
+                loss = discretized_mix_logistic_loss(y_hat, waveform.transpose(1, 2), log_scale_min=-7.0)
+                val_loss += loss.item()
+
+        val_loss /= len(val_dataloader)
+        avg_loss = total_loss / len(train_dataloader)
         if global_rank == 0:
-            wandb.log({"epoch_loss": avg_loss, "epoch": epoch})
-            print(f"[Rank 0] Epoch {epoch} | Avg Loss = {avg_loss:.4f}")
+            # Log epoch avg loss and val loss
+            wandb.log({
+                "epoch_loss": avg_loss,
+                "epoch": epoch,
+                "val_loss":val_loss
+            })
+            
+            print(f"[Rank 0] Epoch {epoch} | Avg Loss = {avg_loss:.4f} | Val loss = {val_loss}")
 
             if epoch % save_every == 0:
                 SAVE_MODEL_PATH.mkdir(parents=True, exist_ok=True)
                 torch.save(wavenet.module.state_dict(), SAVE_MODEL_PATH / f"wavenet_epoch_{epoch}.pt")
 
+        
     if global_rank == 0:
         wandb.finish()
 
