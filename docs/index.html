@@ -239,8 +239,76 @@
 
     <div class="section" id="dataset">
       <h2>Dataset</h2>
-      <p>...</p>
-    </div>
+      <p>
+        A key challenge in our work was to find a suitable multimodal dataset containing aligned audio,
+        images and text captions. Surprisingly, we did not find any publicly available dataset containing
+        all three modalities. We ended up settling on <strong>AudioCaps</strong> dataset, containing,
+        audio samples sourced from YouTube videos along with Human-writted captions describing the audio.
+      </p>
+
+      <p>
+        While AudioCaps provides audio-caption pairs, it lacks corresponding aligned images.
+        We considered extracting frames from the source YouTube videos, but this would violate YouTube's 
+        Terms of Service and risk account termination.
+        Instead, we generated synthetic images using a <strong>Dsitilled Stable Diffusion inference</strong>
+        conditioned on the text captions.
+      </p>
+
+      <h3>Aligned audio, image and caption examples</h3>
+      <div class="dataset-examples">
+        <div class="example-card">
+          <div>
+            <img src="assets/images/dataset/example1.jpg" style="width: 100%;">
+          </div>
+          <div>
+            <p><strong>Caption:</strong> "..."</p>
+            <audio controls src="assets/audio/dataset/example1.wav" style="width: 100%;"></audio>
+          </div>
+        </div>
+      
+        <div class="example-card">
+          <div>
+            <img src="assets/images/dataset/example2.jpg" style="width: 100%;">
+          </div>
+          <div>
+            <p><strong>Caption:</strong> "..."</p>
+            <audio controls src="assets/audio/dataset/example2.wav" style="width: 100%;"></audio>
+          </div>
+        </div>
+      
+        <div class="example-card">
+          <div>
+            <img src="assets/images/dataset/example3.jpg" style="width: 100%;">
+          </div>
+          <div>
+            <p><strong>Caption:</strong> "..."</p>
+            <audio controls src="assets/audio/dataset/example3.wav" style="width: 100%;"></audio>
+          </div>
+        </div>
+      </div>
+
+      
+      <h3>Dataset Creation Pipeline</h3>
+      <p>
+        <ul>
+          <li>Downloading the audio from and caption from
+              <a href="https://huggingface.co/datasets/confit/audiocaps">AudioCaps</a></li>
+          <li>Generating images using 
+            <a href="https://huggingface.co/docs/diffusers/main/en/using-diffusers/distilled_sd">Distilled Stable Diffusion</a></li>
+          <li>Tokenizing the images using
+            <a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DI16x16">Cosmos-Tokenizer</a></li>
+          <li>Tokenzing the audio using ...</li>
+        </ul>
+      </p>
+      
+      <h3>Limitations</h3>
+      <p>
+        While our approach provided a solution to the lack of available dataset, it has some limitations.
+        <strong>Synthetic images</strong> does not perfectly match the audio content and are sometimes
+        unrecognizable. Furthermore, AudioCaps dataset contains mostly environmental sounds which due to 
+        their uniqueness may be hard to learn and generate for a simple model.
+      </p>
+
     <div class="section" id="nanofm">
       <h2>Nano4M & Extras</h2>
       <p>
