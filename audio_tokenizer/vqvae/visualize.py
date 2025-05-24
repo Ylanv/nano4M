@@ -4,118 +4,147 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pathlib import Path
 import torchaudio
-
+from wavenet_vocoder.wavenet import WaveNet
 from audio_tokenizer.vqvae.models.vqvae import VQVAE,RawVQVAE
 from audio_tokenizer.vqvae.data.dataset import LibriSpeechMelDataset
-from audio_tokenizer.vqvae.data.audio_utils import (
-    Mel_to_wf,
-    Wf_to_mel,
-    visualize_waveform,
-    visualize_spectogram,
-    save_waveform_batch
-)
+from audio_tokenizer.vqvae.data.audio_utils import visualize_waveform,visualize_spectogram,stft_loss
 
-
-SAVE_MODEL_PATH = "audio_tokenizer/vqvae/save/vqvae_epoch30.pt"
+WEIGHTS_WAVENET = "/work/com-304/snoupy/weights/wavenet/final.pt"
+WEIGHTS_VQVAE = "/work/com-304/snoupy/weights/vqvae/final/adamw_epoch13.pt"
 DATASET_PATH = "/work/com-304/snoupy/librispeech/"
-URL = "dev-clean" #"train-clean-100"
+DATASET = "dev-clean" 
+SAVE_PATH = "/work/com-304/snoupy/samples"
+ORIGINAL_WAV  = f"{SAVE_PATH}/original.wav" 
 
 # Hyperparameters
-batch_size = 16
+batch_size = 1
 sample_rate = 16000
-segment_duration = 4.0
+segment_duration = 2.0
 stride_duration = 1.0
-n_mels = 80
-n_fft = 1024
-hop_length = 256
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+ 
+def generate_samples():    
+    # === Dataset ===
+    # dataset = LibriSpeechMelDataset(
+    #     root=Path(DATASET_PATH),
+    #     url=DATASET,
+    #     segment_duration=segment_duration,
+    #     stride_duration=stride_duration,
+    # )
+    
+    # === Dataloader ===
+    #dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+    #print(f"Dataset size : {len(dataset)}")
+    
+   
+    # === Model ===
+    
+    # ==== VQ-VAE ==== 
+    
+    vqvae = RawVQVAE(embedding_dim=128, num_embeddings=512).to(device)
+    vqvae.load_state_dict(torch.load(WEIGHTS_VQVAE, weights_only=True))
+    vqvae.eval()
+    
+    # ==== Wavenet ==== 
+    # Initialize Wavenet and load weights
+    wavenet = WaveNet(
+        out_channels=30, #
+        layers=20, #
+        stacks=2, #
+        residual_channels=64, #
+        gate_channels=128, # 
+        skip_out_channels=64,  # 
+        kernel_size=3,# 
+        dropout=0.05, # 
+        cin_channels=128,  
+        scalar_input=True,
+        upsample_conditional_features =True,
+        upsample_scales=[4,4,4,1]
+    ).to(device)
+    wavenet.load_state_dict(torch.load(WEIGHTS_WAVENET,weights_only=True))
+    wavenet.eval()    
 
-def reconstruct():    
-    # Dataset
-    dataset = LibriSpeechMelDataset(
-        root=Path(DATASET_PATH),
-        url=URL,
-        segment_duration=segment_duration,
-        stride_duration=stride_duration,
+    # === Load first batch === 
+    
+    waveform, sr = torchaudio.load(ORIGINAL_WAV)
+    waveform = waveform.unsqueeze(0).to(device)
+        
+    print(f"Waveform shape : {waveform.shape}, sample rate {sr}")
+    
+    # Normalize wf between [-1,1]
+    wf_n = waveform = waveform / waveform.abs().max(dim=-1, keepdim=True)[0].clamp(min=1e-5)
+    
+    # === Reconstruct with vqvae ===
+    wf_vqvae,_ = vqvae(wf_n)
+    
+    print(f"Reconstructed wf with VQ-VAE shape : {wf_vqvae.shape}")
+    
+    # === Reconstruct with wavenet ===
+    z_e = vqvae.encode(wf_n)
+    print(f"z_e shape : {z_e.shape}")
+    with torch.no_grad():
+        wf_wavenet = wavenet.incremental_forward(
+            initial_input = None,
+            c=z_e,
+            T=32000,
+            softmax=False,
+            quantize=False
+        )
+    
+    print(f"Reconstructed wf with wavenet shape : {wf_wavenet.shape}")
+    # === Save generate wf ===
+    # Detach from CPU
+    wf_n = wf_n.squeeze(0).detach().cpu()
+    wf_vqvae = wf_vqvae.squeeze(0).detach().cpu()
+    wf_wavenet = wf_wavenet.squeeze(0).detach().cpu()
+    
+    # # Save original
+    # torchaudio.save(
+    #     ORIGINAL_WAV,
+    #     wf_n,
+    #     sr,
+    #     encoding="PCM_F",
+    #     bits_per_sample = 32   
+    # )
+    
+    # Save vqvae 
+    torchaudio.save(
+        f"{SAVE_PATH}/vqvae.wav",
+        wf_vqvae,
+        sr,
+        encoding="PCM_F",
+        bits_per_sample = 32   
     )
-    # Dataloader
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-    print(f"Dataset size : {len(dataset)}")
-    # Model
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = RawVQVAE(embedding_dim=128, num_embeddings=512).to(device)
-    model.load_state_dict(torch.load(SAVE_MODEL_PATH, weights_only=True))
-    model.eval()
-    # Audio utils
-    mel_to_wf = Mel_to_wf(
-        sample_rate=sample_rate, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels
-    ).to(device)
-    wf_to_mel = Wf_to_mel(
-        sample_rate=sample_rate,
-        n_mels=n_mels,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        segment_duration=segment_duration,
-    ).to(device)
-    loss_fn = nn.L1Loss()
-    for batch_idx, batch in enumerate(dataloader):
-        waveform, sr, txt = batch
-        waveform = waveform.to(device)
-        print(50 * "-" + f"Batch {batch_idx}" + 50 * "-")
-        print(f"Waveform shape : {waveform.shape}, sample rate {sr}")
-        wf_n = waveform = waveform / waveform.abs().max(dim=-1, keepdim=True)[0].clamp(min=1e-5)
-        x_hat,vq_loss = model(wf_n)
-        recon_loss = loss_fn(x_hat,wf_n)
-        print(f"x hat s:{x_hat.shape}, wf_n : {wf_n.shape}")
-        loss_sftf = stft_loss(x_hat, wf_n,n_fft=n_fft,hop_length=hop_length)
-        print(f"Recon loss:{recon_loss},vq_loss:{vq_loss},total loss{recon_loss + vq_loss},loss sftf : {loss_sftf}")
-        save_waveform_batch(
-            wf_n,
-            x_hat,
-            sample_rate=sample_rate,
-            batch_index=batch_idx,
-            batch_size=wf_n.shape[0],
-            output_dir="audio_tokenizer/vqvae/data/inference",
-        )
-        #print(f"Transcribe: {txt}")    
-        if batch_idx > -1:
-            break 
-        continue
-        mel, mean, std = wf_to_mel(waveform)
-        print(
-            f"Waveform transformed to mel spectogram, shape : {mel.shape}, mean : {mean}, std : {std}"
-        )
-        x_recon, vq_loss, _ = model(mel)
-        print(f"VQ Loss : {vq_loss}")
-        x_recon = x_recon.squeeze(1)
-        print(f"Mel spectogram reconstructed, shape : {x_recon.shape}")
+    
+    # Save wavenet
+    torchaudio.save(
+        f"{SAVE_PATH}/wavenet.wav",
+        wf_wavenet,
+        sr,
+        encoding="PCM_F",
+        bits_per_sample = 32   
+    ) 
+    
+    # Save waveform plot
+    visualize_waveform(wf_n,sample_rate,f"{SAVE_PATH}/original.png")
+    visualize_waveform(wf_vqvae,sample_rate,f"{SAVE_PATH}/vqvae.png")
+    visualize_waveform(wf_wavenet,sample_rate,f"{SAVE_PATH}/wavenet.png")
 
-        # Match size
-        mel_len = mel.shape[-1]
-        recon_len = x_recon.shape[-1]
-        if recon_len > mel_len:
-            x_recon = x_recon[:, :, :mel_len]
-        elif recon_len < mel_len:
-            x_recon = F.pad(x_recon, (0, mel_len - recon_len), mode="reflect")
-
-        print(f"Cropping/Padding, shape : {x_recon.shape}")
-        x_recon = x_recon * (std + 1e-6) + mean
-        recon_loss_fn = nn.MSELoss()
-        loss = recon_loss_fn(mel, x_recon)
-        print(f"Reconstruction Loss : {loss}")
-        waveform_recon = mel_to_wf(x_recon)
-        print(f"Mel spectogram transformed to waveform, shape : {waveform_recon.shape}")
-        save_waveform_batch(
-            waveform,
-            waveform_recon,
-            sample_rate=sample_rate,
-            batch_index=batch_idx,
-            batch_size=waveform.shape[0],
-            output_dir="audio_tokenizer/vqvae/data/inference",
-        )
-        print(100 * "-")
-        if batch_idx > -1:
-            break
-
+    # Print reconstruction loss
+    l1_loss = nn.L1Loss()
+    vqvae_l1 = l1_loss(wf_vqvae,wf_n)
+    wavenet_l1 = l1_loss(wf_wavenet,wf_n)
+    vqvae_stft = stft_loss(wf_vqvae,wf_n)
+    wavenet_stft = stft_loss(wf_wavenet,wf_n)
+    
+    print(100*"#")
+    print(40 * " " + "Loss" + 40 * " ")
+    print(100*"#")
+    print("VQ-VAE")
+    print(f"L1 : {vqvae_l1} | STFT : {vqvae_stft}")
+    print("Wavenet")
+    print(f"L1 : {wavenet_l1} | STFT : {wavenet_stft}")
+    
 
 
 
@@ -149,7 +178,7 @@ def check_codebook_similarity(embedding: torch.nn.Embedding, threshold=1e-3):
 
 
 def main():
-    reconstruct()
+    generate_samples()
 
 
 if __name__ == "__main__":

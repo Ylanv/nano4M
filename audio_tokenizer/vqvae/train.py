@@ -14,7 +14,9 @@ from audio_tokenizer.vqvae.data.audio_utils import (
     visualize_waveform,
     visualize_spectogram,
 )
-
+'''
+This file is for training the VQ-VAE using mel spectogram as feature 
+'''
 # Hyperparameters
 batch_size = 1
 learning_rate = 3e-4
