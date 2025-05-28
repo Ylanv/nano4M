@@ -37,11 +37,7 @@
   <section class="abstract-section">
     <h2>Abstract</h2>
     <p>
-      We extend <strong>nano4M</strong> by injecting an <em>audio</em> stream—tokenised with our custom VQ-VAE—to train a truly
-      <em>multimodal</em> foundation model. This lightweight prototype shows that even small Transformer backbones can
-      learn meaningful cross-modal representations, enabling zero-shot <abbr title="Text-to-Speech">TTS</abbr> and audio-conditioned image
-      generation. We describe the audio tokenizer, the aligned dataset we built from AudioCaps, and the training
-      tweaks that made the model converge despite limited compute.
+      <strong>Most models today</strong> can understand <strong>text and images</strong> but not <strong>sound</strong>. In this project, we taught our model <strong>nano4M</strong> to also work with audio. We built a tool that turns sounds into <strong>tokens</strong> so the model can learn from them just like it does with words and pictures. Since there was no dataset with all three types of data, including <strong>audio, images, and text</strong>, we created our own by combining real audio with captions and <strong>AI-generated images</strong>. In the end, our model learned to <strong>connect these different kinds of data</strong> and guess missing parts using the others. This shows that combining sound, text, and images in one model is <strong>possible</strong> and opens the door to <strong>new and useful applications</strong>.
     </p>
   </section>
 
@@ -61,7 +57,20 @@
   <div class="wrapper">
     <div class="section" id="intro">
       <h2>Introduction</h2>
-      <p>...</p>
+      <p>
+      In this project, we worked on adding audio to our multimodal model, <strong>nano4M</strong>. Our goal was to turn audio signals into a sequence of tokens, just like how we do with text and images.
+      To do this, we built an audio tokenizer using a model called <strong>VQ-VAE</strong>. This model helps us take raw audio and convert it into a shorter, discrete representation that a neural network can understand.
+      </p>
+      <p>
+      We tested different versions of the tokenizer: one using spectrograms, one using raw waveforms, and one with a special decoder called <strong>WaveNet</strong> to improve the sound quality.
+      </p>
+      <p>
+      To train nano4M on audio together with images and text, we needed a dataset that aligned all three modalities. Since no public dataset included audio, images, and captions simultaneously, we <strong>created our own multimodal dataset</strong>. 
+      We started with <strong>AudioCaps</strong> (which provides audio and text), and then generated synthetic images from the captions using a text-to-image model.
+      </p>
+      <p>
+      Our final system can learn from audio, images, and text together, and can even guess missing pieces from one modality using the others. This opens up many possibilities, like generating sounds from text or understanding audio with the help of images and captions.
+      </p>
     </div>
 
     <div class="section" id="audio-tokenizer">
@@ -239,8 +248,76 @@
 
     <div class="section" id="dataset">
       <h2>Dataset</h2>
-      <p>...</p>
-    </div>
+      <p>
+        A key challenge in our work was to find a suitable multimodal dataset containing aligned audio,
+        images and text captions. Surprisingly, we did not find any publicly available dataset containing
+        all three modalities. We ended up settling on <strong>AudioCaps</strong> dataset, containing,
+        audio samples sourced from YouTube videos along with Human-writted captions describing the audio.
+      </p>
+
+      <p>
+        While AudioCaps provides audio-caption pairs, it lacks corresponding aligned images.
+        We considered extracting frames from the source YouTube videos, but this would violate YouTube's 
+        Terms of Service and risk account termination.
+        Instead, we generated synthetic images using a <strong>Dsitilled Stable Diffusion inference</strong>
+        conditioned on the text captions.
+      </p>
+
+      <h3>Aligned audio, image and caption examples</h3>
+      <div class="dataset-examples">
+        <div class="example-card">
+          <div>
+            <img src="assets/images/dataset/101021.png" style="width: 100%;">
+          </div>
+          <div>
+            <p><strong>Caption:</strong> "Rain falling and thunder roaring"</p>
+            <audio controls src="assets/audio/dataset/101021.wav" style="width: 100%;"></audio>
+          </div>
+        </div>
+      
+        <div class="example-card">
+          <div>
+            <img src="assets/images/dataset/101096.png" style="width: 100%;">
+          </div>
+          <div>
+            <p><strong>Caption:</strong> "Food frying with person narrating"</p>
+            <audio controls src="assets/audio/dataset/101096.wav" style="width: 100%;"></audio>
+          </div>
+        </div>
+      
+        <div class="example-card">
+          <div>
+            <img src="assets/images/dataset/101162.png" style="width: 100%;">
+          </div>
+          <div>
+            <p><strong>Caption:</strong> "Multiple adults speaking, and a child shouting in the background"</p>
+            <audio controls src="assets/audio/dataset/101162.wav" style="width: 100%;"></audio>
+          </div>
+        </div>
+      </div>
+
+      
+      <h3>Dataset Creation Pipeline</h3>
+      <p>
+        <ul>
+          <li>Downloading the audio from and caption from
+              <a href="https://huggingface.co/datasets/confit/audiocaps">AudioCaps</a></li>
+          <li>Generating images using 
+            <a href="https://huggingface.co/docs/diffusers/main/en/using-diffusers/distilled_sd">Distilled Stable Diffusion</a></li>
+          <li>Tokenizing the images using
+            <a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DI16x16">Cosmos-Tokenizer</a></li>
+          <li>Tokenzing the audio using ...</li>
+        </ul>
+      </p>
+      
+      <h3>Limitations</h3>
+      <p>
+        While our approach provided a solution to the lack of available dataset, it has some limitations.
+        <strong>Synthetic images</strong> does not perfectly match the audio content and are sometimes
+        unrecognizable. Furthermore, AudioCaps dataset contains mostly environmental sounds which due to 
+        their uniqueness may be hard to learn and generate for a simple model.
+      </p>
+
     <div class="section" id="nanofm">
       <h2>Nano4M & Extras</h2>
       <p>
@@ -251,14 +328,19 @@
         <li><strong>Cosmos</strong> for RGB images (patch-based tokenization),</li>
         <li>and our own <strong>VQ-VAE-based tokenizer</strong> for the audio.</li>
       </ul>
+      
       <p>
-        Once the dataset was fully tokenized, we trained our model using the <strong>nano4M architecture</strong>, which is based on a <strong>masked Transformer</strong>. This means that during training, we intentionally hide some parts of the input — and ask the model to guess what’s missing. MANQUE IMAGE ARCHITECTURE
+      Once the dataset was fully tokenized, we trained our model using the <strong>nano4M architecture</strong>, which is based on a <strong>masked Transformer</strong>. During training, we intentionally hide a subset of the input tokens across modalities and ask the model to predict them using the available context.
       </p>
       <p>
-        These missing parts can come from <strong>any of the three modalities</strong>: text (words), audio (sound tokens), or image (patches). The model has to make predictions using the remaining available information from the other parts — and possibly from the other modalities.
+        The diagram below illustrates this process. On the left, each input modality—image, audio, and text—is tokenized separately. Then, a fixed number of tokens are randomly selected as inputs to the Transformer encoder, while the remaining ones are treated as targets to be predicted by the decoder. This masked pre-training encourages the model to reason across modalities.
       </p>
       <p>
-        For example, if we hide a piece of audio, the model can try to guess it using the corresponding image and caption. If we hide a word from the text, the model can use the sound and visual context to find what fits best.
+        <img src="assets/images/vqvae/nano4m-pretraining.PNG" alt="Nano4M multimodal architecture" style="max-width:100%; margin-top: 1em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+      </p>
+
+      <p>
+      This training strategy—visualized above—forces the model to reason across modalities to recover missing pieces. Whether it’s a missing sound, word, or image patch, the model must infer it using cues from the other modalities.
       </p>
       <p>
         By repeating this process many times, the model learns to <strong>connect and understand</strong> how text, images, and audio relate to each other. This helps it build a <strong>shared representation</strong> of all three, and allows it to do things like <em>generate sound from text</em>, or <em>use audio to help interpret an image</em>.
@@ -267,9 +349,10 @@
         As a result, we obtained a <strong>lightweight but versatile model</strong> that can perform basic reasoning across modalities. Our early experiments show promising results, especially in tasks like <em>text-to-audio generation</em> and <em>cross-modal completion</em>.
       </p>
       <p>
-        <strong>Below are some of the results we obtained during our evaluation.</strong>
-        MANQUE RESULTATS
+        <strong>Below are some of the results we obtained during our evaluation:</strong>
       </p>
+      <!-- Résultats à ajouter ici -->
+
     </div>
     <div class="section" id="conclusion">
       <h2>Conclusion & Limitations</h2>
