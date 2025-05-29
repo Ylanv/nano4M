@@ -92,16 +92,12 @@
     </p>
     <div class="architecture-row">
       <div class="audio-column">
-        <p><strong>Mel Spectrogram + Griffin-Lim</strong></p>
-        <img src="assets/images/snoupy.jpg" alt="VQ-VAE using mel spectrogram and Griffin-Lim" style="max-width: 100%;">
-      </div>
-      <div class="audio-column">
-        <p><strong>Raw Waveform + L1/STFT Loss</strong></p>
-        <img src="assets/images/snoupy.jpg" alt="VQ-VAE using raw waveform with L1 or STFT loss" style="max-width: 100%;">
+        <p><strong>MelSpectrogram/Raw Waveform + L1/STFT Loss</strong></p>
+        <img src="assets/images/vqvae/vqvae.jpg" alt="VQ-VAE using raw waveform with L1 or STFT loss" style="max-width: 100%;">
       </div>
       <div class="audio-column">
         <p><strong>Raw Waveform + WaveNet</strong></p>
-        <img src="assets/images/snoupy.jpg" alt="VQ-VAE using WaveNet decoder" style="max-width: 100%;">
+        <img src="assets/images/vqvae/vqvae-wavenet.jpg" alt="VQ-VAE using WaveNet decoder" style="max-width: 100%;">
       </div>
     </div>
   </div>
@@ -119,11 +115,11 @@
   <div class="audio-row">
     <div class="audio-column">
       <p><strong>Original</strong></p>
-      <audio controls src="audio/original_mel.wav"></audio>
+      <audio controls src="assets/audio/exp_vq/original_0.wav"></audio>
     </div>
     <div class="audio-column">
       <p><strong>Reconstructed (Griffin-Lim)</strong></p>
-      <audio controls src="audio/reconstructed_griffin_lim.wav"></audio>
+      <audio controls src="assets/audio/exp_vq/reconstruction_0_ststf.wav"></audio>
     </div>
   </div>
 
@@ -145,18 +141,18 @@
   <div class="audio-row">
     <div class="audio-column">
       <p><strong>Original</strong></p>
-      <audio controls src="audio/original_mel.wav"></audio>
+      <audio controls src="assets/audio/original.wav"></audio>
     </div>
     <div class="audio-column">
       <p><strong>Reconstructed (VQ-VAE raw waveform)</strong></p>
-      <audio controls src="audio/reconstructed_griffin_lim.wav"></audio>
+      <audio controls src="assets/audio/vqvae.wav"></audio>
     </div>
   </div>
 
-  <!-- ==== [ Image placeholder] === --> 
-<h4>Training Loss (Before and After Cosine Annealing)</h4>
-  <img src="assets/images/snoupy.jpg" alt="WaveNet loss curve before cosine annealing" style="max-width:100%; margin-top: 1em;">
-  <img src="assets/images/snoupy.jpg" alt="WaveNet loss curve after cosine annealing" style="max-width:100%; margin-top: 1em;">
+  <!-- ==== [ Image placeholder] === 
+<h4>Training Loss </h4>
+  <img src="assets/images/vqvae/trainingloss.png" alt="VQ-VAE training loss" style="max-width:100%; margin-top: 1em;">
+   -->
   
   <!-- ==== [ 3. Wavenet ] === --> 
   <h3>3. WaveNet as Decoder</h3>
@@ -169,7 +165,7 @@
   p(x|h) = \prod_{t=1}^{T} p(x_t | x_{1:t-1}, h),\text{ where } h = z_q(x)
   $$
   <p>
-    The WaveNet predicts parameters of a <em>mixture of logistic distributions</em> per timestep:
+    WaveNet predicts parameters of a <em>mixture of logistic distributions</em> per timestep:
   </p>
   $$
   \begin{align}
@@ -178,18 +174,7 @@
     &Loss_{total} = \sum_{t=1}^{T}Loss_{t}
   \end{align}
   $$
- 
-  <!-- === WaveNet Loss Explanation === -->
-  
-  <h3>WaveNet Loss Visualization</h3>
-    <p>
-      The video below shows how each waveform point is modeled using a mixture of logistic distributions, and how the training loss is computed.
-    </p>
-    <video controls width="100%" poster="images/poster_loss_video.png">
-      <source src="videos/wavenet_loss_explained.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-  
+
 
   <!-- ==== [ 4. Wavenet training ] === --> 
   <h3>4. Stabilizing Training</h3>
@@ -199,9 +184,10 @@
   <ul>
     <li>Cosine Annealing with warm restarts</li>
     <li>Gradient Clipping</li>
+    <li>360h of audio</li>
   </ul>
   <p>
-    These changes partially stabilized learning. However, audio quality remained limited—likely due
+    These changes partially stabilized learning. However, audio quality remained limited, likely due
     to insufficient latent expressiveness.
   </p>
 
@@ -210,28 +196,20 @@
   <div class="audio-row">
     <div class="audio-column">
       <p><strong>Original</strong></p>
-      <audio controls src="audio/original_mel.wav"></audio>
+      <audio controls src="assets/audio/original.wav"></audio>
     </div>
     <div class="audio-column">
       <p><strong>Reconstructed (VQ-VAE raw waveform)</strong></p>
-      <audio controls src="audio/reconstructed_griffin_lim.wav"></audio>
+      <audio controls src="assets/audio/wavenet.wav"></audio>
     </div>
   </div>
 
-  <!-- ==== [ Image placeholder] === --> 
+  <!-- ==== [ Image placeholder] === 
 <h4>Training Loss of Wavenet</h4>
-  <img src="assets/images/snoupy.jpg" alt="WaveNet loss curve before cosine annealing" style="max-width:100%; margin-top: 1em;">
-  <img src="assets/images/snoupy.jpg" alt="WaveNet loss curve after cosine annealing" style="max-width:100%; margin-top: 1em;">
+  <img src="assets/images/wavenetloss.png" alt="WaveNet training loss curve" style="max-width:100%; margin-top: 1em;">
+   -->
 
-<!-- ==== [ Video full pipeline] === --> 
-  <h3>Tokenizer training</h3>
-    <p>
-    This animation shows the entire audio transformation flow: from raw waveform input to discrete latent representation and back through WaveNet reconstruction.
-    </p>
-    <video controls width="100%" poster="images/poster_loss_video.png">
-      <source src="videos/wavenet_loss_explained.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
+
 
   <!-- ==== [ Summary and future work ] === --> 
   <h3>7. Summary</h3>
@@ -306,7 +284,8 @@
             <a href="https://huggingface.co/docs/diffusers/main/en/using-diffusers/distilled_sd">Distilled Stable Diffusion</a></li>
           <li>Tokenizing the images using
             <a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DI16x16">Cosmos-Tokenizer</a></li>
-          <li>Tokenzing the audio using ...</li>
+          <li>Tokenzing the audio using 
+            <a href="https://github.com/facebookresearch/encodec">EnCodec</a></li>
         </ul>
       </p>
       
@@ -318,19 +297,10 @@
         their uniqueness may be hard to learn and generate for a simple model.
       </p>
 
-    <div class="section" id="nanofm">
+    <div class="section2">
       <h2>Nano4M & Extras</h2>
       <p>
-        We used the <strong>AudioCaps</strong> dataset mentioned above to train our multimodal model, <strong>nano4M</strong>. To do this, we applied three different tokenization strategies:
-      </p>
-      <ul>
-        <li><strong>GPT-2</strong> for the text captions,</li>
-        <li><strong>Cosmos</strong> for RGB images (patch-based tokenization),</li>
-        <li>and our own <strong>VQ-VAE-based tokenizer</strong> for the audio.</li>
-      </ul>
-      
-      <p>
-      Once the dataset was fully tokenized, we trained our model using the <strong>nano4M architecture</strong>, which is based on a <strong>masked Transformer</strong>. During training, we intentionally hide a subset of the input tokens across modalities and ask the model to predict them using the available context.
+      Once the dataset was fully tokenized, we trained our model using the <strong>nano4M architecture</strong>, which is based on a <strong>4M</strong>. During training, we intentionally hide a subset of the input tokens across modalities and ask the model to predict them using the available context.
       </p>
       <p>
         The diagram below illustrates this process. On the left, each input modality—image, audio, and text—is tokenized separately. Then, a fixed number of tokens are randomly selected as inputs to the Transformer encoder, while the remaining ones are treated as targets to be predicted by the decoder. This masked pre-training encourages the model to reason across modalities.
@@ -346,17 +316,88 @@
         By repeating this process many times, the model learns to <strong>connect and understand</strong> how text, images, and audio relate to each other. This helps it build a <strong>shared representation</strong> of all three, and allows it to do things like <em>generate sound from text</em>, or <em>use audio to help interpret an image</em>.
       </p>
       <p>
-        As a result, we obtained a <strong>lightweight but versatile model</strong> that can perform basic reasoning across modalities. Our early experiments show promising results, especially in tasks like <em>text-to-audio generation</em> and <em>cross-modal completion</em>.
+        As a result, we obtained a <strong>lightweight but versatile model</strong> that can perform basic reasoning across modalities. Our early experiments did not yield significant results. The synthetic images generated from captions lacked sufficient visual clarity, which limited the model's ability to learn meaningful cross-modal representations. Additionally, the audio modality introduced a critical challenge: token granularity. While text and image data can be effectively represented within 256 tokens, this token budget captures only a small fraction of the audio signal. For instance, 5 seconds of audio at 48kHz using EnCodec typically results in approximately 3,000 tokens. As a result, during training, only a small segment of the audio is used, which leads the model to learn to generate short bursts of noise rather than coherent audio sequences..
       </p>
       <p>
         <strong>Below are some of the results we obtained during our evaluation:</strong>
       </p>
       <!-- Résultats à ajouter ici -->
+       <h3>RGB → Caption</h3>
+      <div class="container">
+        <div class="image-box">
+          <img src="assets/images/nano4m/sample1.png" alt="Input Image">
+        </div>
+        <div class="arrow">→</div>
+        <div class="text-box">
+          <p>"Papericking, then"</p>
+        </div>
+      </div>
+
+      <!-- Flipped: Text left, Image right -->
+       <h3>Caption → RGB</h3>
+    <div class="container reverse">
+      <div class="image-box">
+        <img src="assets/images/nano4m/sample2.png" alt="Output Image">
+      </div>
+      <div class="arrow">→</div>
+      <div class="text-box">
+        <p>"Someone crumples paper."</p>
+      </div>
+    </div>
+
+      <!-- Audio to Text -->
+       <h3>Audio → RGB</h3>
+  <div class="container">
+    <div class="audio-box">
+      <audio controls>
+        <source src="assets/images/nano4m/audiorgb.wav" type="audio/wav">
+        Your browser does not support the audio element.
+      </audio>
+    </div>
+    <div class="arrow">→</div>
+    <div class="image-box">
+        <img src="assets/images/nano4m/audiorgb.png" alt="Output Image">
+      </div>
+  </div>
 
     </div>
-    <div class="section" id="conclusion">
+    <div class="section3">
       <h2>Conclusion & Limitations</h2>
-      <p>...</p>
+      <p>
+  In this work, we explored the feasibility of integrating an audio modality into <strong>nano4M</strong>, 
+  a lightweight multimodal architecture, using a fully synthetic dataset constructed from AudioCaps. 
+  Our objective was to enable joint training across text, image, and audio modalities within a unified framework.
+</p>
+
+<p>
+  Throughout our experiments, we encountered several key challenges:
+</p>
+
+<ul>
+  <li>
+    <strong>Synthetic Image Quality:</strong> The images generated from text captions lacked sufficient visual fidelity, 
+    limiting the model's ability to learn robust cross-modal representations. While higher-quality generative tools could 
+    mitigate this issue, our exploration was constrained by limited computational resources and time.
+  </li>
+  <li>
+    <strong>Audio Tokenization:</strong> We implemented a VQ-VAE-based tokenizer and observed promising reconstruction results. 
+    However, performance remains bounded by the scale and diversity of the training dataset. Expanding the dataset and including 
+    more varied acoustic conditions could significantly improve audio representation quality.
+  </li>
+  <li>
+    <strong>Token Granularity Mismatch:</strong> A core limitation lies in the significant disparity between token sequence lengths 
+    across modalities. While text and image can typically be represented with fewer than 256 tokens, even short audio clips 
+    (e.g., 5 seconds at 48kHz using EnCodec) result in thousands of tokens. This restricts the effective use of audio data 
+    during training and hampers the model’s ability to learn meaningful cross-modal mappings. Addressing this granularity mismatch 
+    remains a key direction for future work.
+  </li>
+</ul>
+
+<p>
+  Overall, our results highlight both the potential and the challenges of extending lightweight multimodal architectures 
+  to include audio. This initial study lays the groundwork for more scalable and expressive models that can fully exploit 
+  audio as a first-class modality.
+</p>
     </div>
 
     <div class

@@ -214,3 +214,40 @@ code {
   padding: 15px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
+
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 80px;
+  font-family: sans-serif;
+  margin-bottom: 40px;
+}
+
+.reverse {
+  flex-direction: row-reverse;
+}
+
+.image-box img {
+  width: 150px; /* Adjust as needed */
+  height: auto;
+  
+}
+
+.arrow {
+  font-size: 80px;
+  color: #555;
+  flex-shrink: 0;
+  text-align: center;
+  width: 80px;
+  gap: 100 px;
+}
+
+.text-box {
+  max-width: 150px;
+  font-size: 1.1em;
+}
+
+audio-box audio {
+  width: 100px;
+}
