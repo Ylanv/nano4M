@@ -23,6 +23,7 @@ import yaml
 from hydra.utils import instantiate
 from pathlib import Path
 from typing import Iterable, Sequence, List, Dict, Optional
+import json
 
 import numpy as np
 import torch
@@ -270,20 +271,28 @@ def train_loop(
 
         # Move tensors to GPU
         data_dict = to_device(data_dict, device)
-
+        print(f"Data dic : {data_dict['enc_tokens']}")
         # Forward pass and loss computation
         with torch.amp.autocast(device.type, dtype=dtype, enabled=dtype != torch.float32):
             loss, metrics = model(data_dict)
-
+            print(f"Loss inside training : {loss}, type : {type(loss)},shape : {loss.shape}, dtype : {loss.dtype}",flush = True)
         loss_value = loss.item()
+        print(f"Loss values : {loss_value}")
         metrics_values = {f'{metric}': l.item() for metric, l in metrics.items()}
-
+        print(f"loss is finite : {math.isfinite(loss_value)} ")
         # Stop training if loss is not finite, and save debug info
         if not math.isfinite(loss_value):
             torch.save(data_dict, os.path.join(args.output_dir, "debug.pt"))
+            print(f"Loss inside training : {loss}, type : {type(loss)},shape : {loss.shape}, dtype : {loss.dtype}",file=sys.stderr)
+            print(f"Metric : {metrics}",file=sys.stderr)
             print(f"Loss is {loss_value}, stopping training", file=sys.stderr)
             print(f"Saved debug info to {args.output_dir}/debug.pt", file=sys.stderr)
-            sys.exit(1)
+            torch.set_printoptions(threshold=10_000)  # or float('inf') for no limit
+            with open("debug.txt", "w") as f:
+                print(data_dict, file=f)
+
+            raise RuntimeError(f"Loss is not finite: {loss}")
+
 
         # Assign learning rate for each step
         lr = lr_schedule_values[it]
