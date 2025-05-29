@@ -118,6 +118,8 @@ def visualize_waveform(y, sr, path: Optional[str] = None):
 
 def visualize_spectogram(mel_features, sr, path: Optional[str] = None):
     """Visualize Spectogram given mel features"""
+    if mel_features.ndim == 3:
+        mel_features = mel_features.squeeze(0)
     mel_features = mel_features.numpy()
     plt.figure(figsize=(12, 4))
     librosa.display.specshow(mel_features, sr=sr, x_axis="time", y_axis="mel")
