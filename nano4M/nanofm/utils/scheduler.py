@@ -19,7 +19,10 @@
 import numpy as np
 import math
 
-def cosine_scheduler(base_value, final_value, total_iters, warmup_iters, start_warmup_value=0.0):
+
+def cosine_scheduler(
+    base_value, final_value, total_iters, warmup_iters, start_warmup_value=0.0
+):
     assert warmup_iters >= 0
     assert total_iters > 0
     assert start_warmup_value <= base_value
@@ -33,10 +36,15 @@ def cosine_scheduler(base_value, final_value, total_iters, warmup_iters, start_w
         warmup_schedule = np.array([])
 
     cosine_iters = np.arange(total_iters - warmup_iters)
-    cosine_schedule = np.array([
-        final_value + 0.5 * (base_value - final_value) * (1 + math.cos(math.pi * i / (len(cosine_iters)))) 
-        for i in cosine_iters
-    ])
+    cosine_schedule = np.array(
+        [
+            final_value
+            + 0.5
+            * (base_value - final_value)
+            * (1 + math.cos(math.pi * i / (len(cosine_iters))))
+            for i in cosine_iters
+        ]
+    )
 
     schedule = np.concatenate((warmup_schedule, cosine_schedule))
 

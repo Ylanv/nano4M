@@ -16,13 +16,13 @@
 # https://github.com/apple/ml-4m/
 # --------------------------------------------------------
 def setup_run_name(args):
-    if args.run_name == 'auto':
+    if args.run_name == "auto":
         # This returns the config name after removing the first two parent dirs and extension
-        args.run_name = args.config_path.partition('cfgs/')[2].replace(".yaml", "")
+        args.run_name = args.config_path.partition("cfgs/")[2].replace(".yaml", "")
 
-    if 'wandb_run_name' in args and args.wandb_run_name == 'auto':
+    if "wandb_run_name" in args and args.wandb_run_name == "auto":
         # Wandb omits the current parent dir (pretrain, finetune, etc...) as it is part of the wandb project
-        args.wandb_run_name = args.run_name.partition('/')[2]
+        args.wandb_run_name = args.run_name.partition("/")[2]
 
-    if 'output_dir' in args and 'auto' in args.output_dir:
-        args.output_dir = args.output_dir.replace('auto', args.run_name)
+    if "output_dir" in args and "auto" in args.output_dir:
+        args.output_dir = args.output_dir.replace("auto", args.run_name)
