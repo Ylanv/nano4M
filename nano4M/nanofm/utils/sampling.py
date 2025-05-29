@@ -46,10 +46,13 @@ def top_k_top_p_filtering(logits, top_k=0.0, top_p=0.0):
         sorted_indices_to_remove[..., 0] = 0
 
         restore_indices = torch.argsort(sorted_indices, dim=-1)
-        indices_to_remove = torch.gather(sorted_indices_to_remove, dim=-1, index=restore_indices)
+        indices_to_remove = torch.gather(
+            sorted_indices_to_remove, dim=-1, index=restore_indices
+        )
         logits[indices_to_remove] = float("-inf")
 
     return logits
+
 
 def sample_tokens(logits, temperature=1.0, top_k=0.0, top_p=0.0):
     if np.isclose(temperature, 0, atol=1e-10):

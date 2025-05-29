@@ -115,7 +115,9 @@ class MetricLogger(object):
             return self.meters[attr]
         if attr in self.__dict__:
             return self.__dict__[attr]
-        raise AttributeError("'{}' object has no attribute '{}'".format(type(self).__name__, attr))
+        raise AttributeError(
+            "'{}' object has no attribute '{}'".format(type(self).__name__, attr)
+        )
 
     def __str__(self):
         loss_str = []
@@ -189,8 +191,14 @@ class MetricLogger(object):
             end = time.time()
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        time_per_iter_str = "{:.4f}".format(total_time / iter_len) if iter_len > 0 else "?"
-        print("{} Total time: {} ({} s / it)".format(header, total_time_str, time_per_iter_str))
+        time_per_iter_str = (
+            "{:.4f}".format(total_time / iter_len) if iter_len > 0 else "?"
+        )
+        print(
+            "{} Total time: {} ({} s / it)".format(
+                header, total_time_str, time_per_iter_str
+            )
+        )
 
 
 class WandbLogger(object):

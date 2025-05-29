@@ -14,5 +14,8 @@ CONFIG_FILE=$1
 WANDB=$2
 NUM_GPUS=$3
 
+source /work/com-304/new_environment/anaconda3/etc/profile.d/conda.sh
+conda init
 conda activate nanofm
+
 export WANDB_API_KEY=$WANDB && OMP_NUM_THREADS=1 torchrun --nproc_per_node=$NUM_GPUS run_training.py --config $CONFIG_FILE

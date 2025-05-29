@@ -40,9 +40,16 @@ def get_parameter_groups(model, weight_decay=1e-5, skip_list=()):
         # Assign weight decay values
         # Only norm and bias terms should have no decay
         # Previously, this checked if (param.shape) == 1 which is incompatible with FSDP which flattens all params
-        if "norm." in name or ".norm" in name or name.endswith(".bias") or name.endswith(".lookup_table_weight") or name.endswith(".gamma") or name in skip_list:
+        if (
+            "norm." in name
+            or ".norm" in name
+            or name.endswith(".bias")
+            or name.endswith(".lookup_table_weight")
+            or name.endswith(".gamma")
+            or name in skip_list
+        ):
             group_name = "no_decay"
-            this_weight_decay = 0.
+            this_weight_decay = 0.0
         else:
             group_name = "decay"
             this_weight_decay = weight_decay
@@ -71,22 +78,22 @@ def create_adamw_optimizer(args, model, filter_bias_and_bn=True, skip_list=None)
             skip = {}
             if skip_list is not None:
                 skip = skip_list
-            elif hasattr(m, 'no_weight_decay'):
+            elif hasattr(m, "no_weight_decay"):
                 skip = m.no_weight_decay()
             parameters = get_parameter_groups(m, weight_decay, skip)
-            wd = 0.
+            wd = 0.0
         else:
             parameters = m.parameters()
             wd = weight_decay
         return parameters, wd
-    
+
     parameters, weight_decay = get_parameters(model)
 
     opt_args = dict(lr=args.lr, weight_decay=weight_decay)
-    if hasattr(args, 'opt_eps') and args.opt_eps is not None:
-        opt_args['eps'] = args.opt_eps
-    if hasattr(args, 'opt_betas') and args.opt_betas is not None:
-        opt_args['betas'] = args.opt_betas
+    if hasattr(args, "opt_eps") and args.opt_eps is not None:
+        opt_args["eps"] = args.opt_eps
+    if hasattr(args, "opt_betas") and args.opt_betas is not None:
+        opt_args["betas"] = args.opt_betas
 
     print("optimizer settings:", opt_args)
 

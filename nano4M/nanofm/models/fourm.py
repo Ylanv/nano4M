@@ -20,21 +20,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import repeat
 
-from nanofm.modeling.transformer_layers import TransformerTrunk, TransformerDecoderTrunk, LayerNorm
+from nanofm.modeling.transformer_layers import (
+    TransformerTrunk,
+    TransformerDecoderTrunk,
+    LayerNorm,
+)
 from nanofm.utils.sampling import sample_tokens
 
 
-def build_1d_sincos_posemb(max_len, embed_dim=1024, temperature=10000.):
+def build_1d_sincos_posemb(max_len, embed_dim=1024, temperature=10000.0):
     """Sine-cosine positional embeddings from MoCo-v3, adapted back to 1d.
     Returns positional embedding of shape (N, D)
     """
-    arange = torch.arange(max_len, dtype=torch.float32) # Shape (N,)
-    assert embed_dim % 2 == 0, 'Embed dimension must be divisible by 2 for 1D sin-cos position embedding'
+    arange = torch.arange(max_len, dtype=torch.float32)  # Shape (N,)
+    assert (
+        embed_dim % 2 == 0
+    ), "Embed dimension must be divisible by 2 for 1D sin-cos position embedding"
     pos_dim = embed_dim // 2
-    omega = torch.arange(pos_dim, dtype=torch.float32) / pos_dim # Shape (D/2,)
-    omega = 1. / (temperature ** omega)
-    out = torch.einsum('n,d->nd', [arange, omega]) # Outer product, shape (N, D/2)
-    pos_emb = torch.cat([torch.sin(out), torch.cos(out)], dim=1) # Shape (N, D)
+    omega = torch.arange(pos_dim, dtype=torch.float32) / pos_dim  # Shape (D/2,)
+    omega = 1.0 / (temperature**omega)
+    out = torch.einsum("n,d->nd", [arange, omega])  # Outer product, shape (N, D/2)
+    pos_emb = torch.cat([torch.sin(out), torch.cos(out)], dim=1)  # Shape (N, D)
     return pos_emb
 
 
@@ -65,6 +71,7 @@ class FourM(nn.Module):
         per_modality_loss_avg: If True, compute the loss for each modality separately and average them.
             Otherwise, compute the loss over all target tokens together.
     """
+
     def __init__(
         self,
         enc_tokens_read_key: str,
@@ -109,29 +116,55 @@ class FourM(nn.Module):
         self.per_modality_loss_avg = per_modality_loss_avg
 
         # Initialize encoder token embedding
-        self.enc_tok_emb = nn.Embedding(self.vocab_size,dim) # TODO: Define the input embedding layer using self.vocab_size
+        self.enc_tok_emb = nn.Embedding(
+            self.vocab_size, dim
+        )  # TODO: Define the input embedding layer using self.vocab_size
 
         # Initialize positional embeddings of predefined maximum length that we re-use for different modalities
         pos_emb = build_1d_sincos_posemb(self.max_posemb_len, dim)
         self.register_buffer("pos_emb", pos_emb)
 
         # Initialize modality embeddings
-        self.enc_mod_emb = nn.Embedding(self.num_modalities,dim) # TODO: Define the encoder modality embedding layer using self.num_modalities
-        self.dec_mod_emb = nn.Embedding(self.num_modalities,dim) # TODO: Define the decoder modality embedding layer using self.num_modalities
-                
+        self.enc_mod_emb = nn.Embedding(
+            self.num_modalities, dim
+        )  # TODO: Define the encoder modality embedding layer using self.num_modalities
+        self.dec_mod_emb = nn.Embedding(
+            self.num_modalities, dim
+        )  # TODO: Define the decoder modality embedding layer using self.num_modalities
+
         # Initialize Transformer encoder and decoder trunks
-        self.encoder = TransformerTrunk(dim=dim,depth=enc_depth,head_dim=head_dim,mlp_ratio=mlp_ratio,use_bias=use_bias) # TODO: Define the Transformer encoder trunk
-        self.decoder = TransformerDecoderTrunk(dim=dim,depth=dec_depth,head_dim=head_dim,mlp_ratio=mlp_ratio,use_bias=use_bias) # TODO: Define the Transformer decoder trunk
+        self.encoder = TransformerTrunk(
+            dim=dim,
+            depth=enc_depth,
+            head_dim=head_dim,
+            mlp_ratio=mlp_ratio,
+            use_bias=use_bias,
+        )  # TODO: Define the Transformer encoder trunk
+        self.decoder = TransformerDecoderTrunk(
+            dim=dim,
+            depth=dec_depth,
+            head_dim=head_dim,
+            mlp_ratio=mlp_ratio,
+            use_bias=use_bias,
+        )  # TODO: Define the Transformer decoder trunk
 
         # Initialize encoder -> decoder context projection
-        self.dec_context_proj = nn.Linear(dim,dim) # TODO: Define the encoder -> decoder projection. This is simply a linear layer mapping dim -> dim.
+        self.dec_context_proj = nn.Linear(
+            dim, dim
+        )  # TODO: Define the encoder -> decoder projection. This is simply a linear layer mapping dim -> dim.
 
         # Initialize decoder output projection
-        self.to_logits = nn.Linear(dim,self.vocab_size) # TODO: Define the output projection layer using self.vocab_size
+        self.to_logits = nn.Linear(
+            dim, self.vocab_size
+        )  # TODO: Define the output projection layer using self.vocab_size
 
         # Initialize norm layers
-        self.enc_norm = LayerNorm(dim,bias = use_bias) # TODO: Define the encoder output layer normalization. Use the LayerNorm class defined in modeling/transformer_layers.py
-        self.dec_norm = LayerNorm(dim,bias = use_bias) # TODO: Define the decoder output layer normalization. Use the LayerNorm class defined in modeling/transformer_layers.py
+        self.enc_norm = LayerNorm(
+            dim, bias=use_bias
+        )  # TODO: Define the encoder output layer normalization. Use the LayerNorm class defined in modeling/transformer_layers.py
+        self.dec_norm = LayerNorm(
+            dim, bias=use_bias
+        )  # TODO: Define the decoder output layer normalization. Use the LayerNorm class defined in modeling/transformer_layers.py
 
         # Weight initialization
         self.init_std = init_std
@@ -142,9 +175,9 @@ class FourM(nn.Module):
         return next(self.parameters()).device
 
     def initialize_weights(self) -> None:
-        """Initialize the weights of the model.""" 
-        self.apply(self._init_weights) # Initialize nn.Linear and nn.Embedding
-        nn.init.constant_(self.to_logits.weight, 0) # Zero-init the output projection
+        """Initialize the weights of the model."""
+        self.apply(self._init_weights)  # Initialize nn.Linear and nn.Embedding
+        nn.init.constant_(self.to_logits.weight, 0)  # Zero-init the output projection
 
     def _init_weights(self, module) -> None:
         if isinstance(module, nn.Linear):
@@ -185,38 +218,45 @@ class FourM(nn.Module):
             enc_input_tokens: LongTensor of shape (B, N) with encoder input token IDs.
             enc_input_modalities: LongTensor of shape (B, N) with IDs specifying which modality
                 is input at each position.
-            enc_input_positions: LongTensor of shape (B, N) with encoder input positions, 
+            enc_input_positions: LongTensor of shape (B, N) with encoder input positions,
                 used to get the corresponding positional embeddings.
             enc_pad_mask: Boolean tensor of shape (B, N) where True indicates a valid token,
                 and False indicates a padded token.
         Returns:
-            Encoded tokens tensor of shape (B, N, D) and corresponding positional embeddings 
+            Encoded tokens tensor of shape (B, N, D) and corresponding positional embeddings
             tensor of shape (B, N, D).
         """
         B, N = enc_input_tokens.shape
-
+       
         # TODO: Embed the input tokens `enc_input_tokens` using the input embedding layer `enc_tok_emb`. Shape: [B, N, D]
-        x = self.enc_tok_emb(enc_input_tokens)
+        emb = self.enc_tok_emb
 
+   
+
+        x = self.enc_tok_emb(enc_input_tokens)
         # TODO: Embed the input modality IDs `enc_input_modalities` using the input embedding layer `enc_mod_emb`. Shape: [B, N, D]
         # Sum the modality embeddings to the token embeddings.
         x = x + self.enc_mod_emb(enc_input_modalities)
-
+        
         # TODO: Get the positional embeddings for the input positions `enc_input_positions` and add them to the input tokens. Shape: [B, N, D]
         # Sum the positional embeddings to the token embeddings.
         enc_posembs = self.pos_emb[enc_input_positions]
         x = x + enc_posembs
-
+        
         # Construct (B, N, N) attention mask for padding. True = used, False = masked out.
-        enc_pad_attn_mask = repeat(enc_pad_mask, 'b n -> b m n', m=N) if enc_pad_mask is not None else None
+        enc_pad_attn_mask = (
+            repeat(enc_pad_mask, "b n -> b m n", m=N)
+            if enc_pad_mask is not None
+            else None
+        )
 
         # TODO: Forward pass through the Transformer encoder. Shape [B, N, D]
         # Hint: Don't forget to pass the encoder attention mask `enc_pad_attn_mask`.
         x = self.encoder(x,enc_pad_attn_mask)
-
+        
         # TODO: Pass to the encoder output normalization layer
         x = self.enc_norm(x)
-
+       
         return x, enc_posembs
 
     def forward_decoder(
@@ -248,7 +288,6 @@ class FourM(nn.Module):
         """
         B, M = dec_input_modalities.shape
         _, N, _ = enc_context.shape
-
         # TODO: Embed the target modality IDs `dec_input_modalities` using the embedding layer `dec_mod_emb`. Shape: [B, M, D]
         x = self.dec_mod_emb(dec_input_modalities)
 
@@ -258,10 +297,18 @@ class FourM(nn.Module):
 
         # Construct attention masks for padding. True = used, False = masked out.
         # [B, M, M] self-attention mask and [B, M, N] cross-attention mask
-        dec_pad_sa_mask = repeat(dec_pad_mask, 'b m -> b n m', n=M) if dec_pad_mask is not None else None
-        dec_pad_xa_mask = repeat(enc_pad_mask, 'b n -> b m n', m=M) if enc_pad_mask is not None else None
+        dec_pad_sa_mask = (
+            repeat(dec_pad_mask, "b m -> b n m", n=M)
+            if dec_pad_mask is not None
+            else None
+        )
+        dec_pad_xa_mask = (
+            repeat(enc_pad_mask, "b n -> b m n", m=M)
+            if enc_pad_mask is not None
+            else None
+        )
 
-        # TODO: Project context `enc_context` to the decoder dimension using `dec_context_proj`. Shape: [B, N, D] 
+        # TODO: Project context `enc_context` to the decoder dimension using `dec_context_proj`. Shape: [B, N, D]
         context = self.dec_context_proj(enc_context)
 
         # Add the encoder positional embeddings `enc_posembs`. Shape: [B, N, D]
@@ -269,7 +316,7 @@ class FourM(nn.Module):
 
         # TODO: Pass through the Transformer decoder. Shape [B, M, D]
         # Hint: Don't forget to pass the decoder self-attention mask `dec_pad_sa_mask` and the cross-attention mask `dec_pad_xa_mask`.
-        x = self.decoder(x,context,dec_pad_sa_mask,dec_pad_xa_mask)
+        x = self.decoder(x, context, dec_pad_sa_mask, dec_pad_xa_mask)
 
         # TODO: Pass to the decoder output normalization layer
         x = self.dec_norm(x)
@@ -277,35 +324,38 @@ class FourM(nn.Module):
         return x
 
     def forward_model(
-            self, 
-            enc_input_tokens: torch.LongTensor,
-            enc_input_modalities: torch.LongTensor,
-            enc_input_positions: torch.LongTensor,
-            dec_input_modalities: torch.LongTensor,
-            dec_input_positions: torch.LongTensor,
-            enc_pad_mask: Optional[torch.BoolTensor] = None,
-            dec_pad_mask: Optional[torch.BoolTensor] = None,
-        ) -> torch.Tensor:
+        self,
+        enc_input_tokens: torch.LongTensor,
+        enc_input_modalities: torch.LongTensor,
+        enc_input_positions: torch.LongTensor,
+        dec_input_modalities: torch.LongTensor,
+        dec_input_positions: torch.LongTensor,
+        enc_pad_mask: Optional[torch.BoolTensor] = None,
+        dec_pad_mask: Optional[torch.BoolTensor] = None,
+    ) -> torch.Tensor:
 
         # Encoder forward pass
         enc_x, enc_posembs = self.forward_encoder(enc_input_tokens, enc_input_modalities, enc_input_positions, enc_pad_mask)
-
+        
+        
         # Decoder forward pass
         dec_x = self.forward_decoder(dec_input_modalities, dec_input_positions, enc_x, enc_posembs, enc_pad_mask, dec_pad_mask)
+       
 
         # TODO: Pass `dec_x` through linear output head `to_logits` to compute the logits. Shape: [B, M, vocab_size]
         logits = self.to_logits(dec_x)
+        
 
         return logits
 
     def compute_ce_loss(
-            self, 
-            logits: torch.Tensor, 
-            target_seq: torch.LongTensor, 
-            padding_idx: int = -100,
-            per_modality_loss_avg: bool = False,
-            modality_indices: Optional[torch.Tensor] = None,
-        ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        self,
+        logits: torch.Tensor,
+        target_seq: torch.LongTensor,
+        padding_idx: int = -100,
+        per_modality_loss_avg: bool = False,
+        modality_indices: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """
         Compute the cross-entropy loss given logits and target labels, ignoring padding tokens.
 
@@ -329,7 +379,7 @@ class FourM(nn.Module):
             modality_indices = modality_indices.reshape(-1)
             valid_mask = target_seq != padding_idx
 
-            losses = F.cross_entropy(logits, target_seq, reduction='none')
+            losses = F.cross_entropy(logits, target_seq, reduction="none")
 
             per_modality_losses = {}
             for mod_idx, modality in enumerate(self.modalities):
@@ -338,11 +388,11 @@ class FourM(nn.Module):
                     per_modality_losses[modality] = losses[mod_mask].mean()
                 else:
                     per_modality_losses[modality] = torch.tensor(0.0, device=losses.device)
-
+            
+          
             loss = sum(per_modality_losses.values()) / len(per_modality_losses)
-
+            
         return loss, per_modality_losses
-
 
     def forward(self, data_dict: Dict[str, Any]) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """
@@ -363,9 +413,9 @@ class FourM(nn.Module):
             enc_pad_mask=data_dict.get(self.enc_pad_mask_read_key, None),
             dec_pad_mask=data_dict.get(self.dec_pad_mask_read_key, None),
         )
-        
+
         # Compute loss
-        loss, modality_metrics =  self.compute_ce_loss(
+        loss, modality_metrics = self.compute_ce_loss(
             logits=logits,
             target_seq=data_dict[self.dec_tokens_read_key],
             padding_idx=self.padding_idx,
@@ -375,9 +425,11 @@ class FourM(nn.Module):
 
         return loss, modality_metrics
 
-    def get_unmasking_schedule(self, total_tokens: int, num_steps: int = 8) -> List[int]:
+    def get_unmasking_schedule(
+        self, total_tokens: int, num_steps: int = 8
+    ) -> List[int]:
         """
-        Generates a schedule for unmasking tokens at inference time. We only added a 
+        Generates a schedule for unmasking tokens at inference time. We only added a
         constant schedule for now, but feel free to add more schedules, e.g. a cosine schedule!
         This can be used for both "ROAR" and MaskGIT-style decoding.
 
@@ -389,31 +441,37 @@ class FourM(nn.Module):
         """
         assert total_tokens > 0, "No tokens to unmask in the input sequence."
         assert num_steps > 0, "Number of steps should be greater than zero."
-        assert num_steps <= total_tokens, "Number of steps should be less than or equal to the total number of tokens to unmask."
-        
+        assert (
+            num_steps <= total_tokens
+        ), "Number of steps should be less than or equal to the total number of tokens to unmask."
+
         tokens_per_step = total_tokens // num_steps
         remainder = total_tokens % num_steps
         schedule = [tokens_per_step] * num_steps
         schedule[-1] += remainder
 
-        assert len(schedule) == num_steps, "Schedule length should match the number of steps."
-        assert sum(schedule) == total_tokens, "Total number of tokens to unmask should match the sum of the schedule."
+        assert (
+            len(schedule) == num_steps
+        ), "Schedule length should match the number of steps."
+        assert (
+            sum(schedule) == total_tokens
+        ), "Total number of tokens to unmask should match the sum of the schedule."
 
         return schedule
 
     def generate_one_modality_roar(
-            self,
-            enc_input_tokens: torch.LongTensor,
-            enc_input_positions: torch.LongTensor,
-            enc_input_modalities: torch.LongTensor,
-            target_mod: str,
-            num_steps: int = 8, 
-            temp: float = 1.0, 
-            top_p: float = 0.0, 
-            top_k: float = 0.0,
-        ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+        self,
+        enc_input_tokens: torch.LongTensor,
+        enc_input_positions: torch.LongTensor,
+        enc_input_modalities: torch.LongTensor,
+        target_mod: str,
+        num_steps: int = 8,
+        temp: float = 1.0,
+        top_p: float = 0.0,
+        top_k: float = 0.0,
+    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
         """
-        Generate one modality through iterative unmasking using the Random Order Auto Regressive 
+        Generate one modality through iterative unmasking using the Random Order Auto Regressive
         (ROAR) decoding scheme introduced in 4M.
 
         Args:
@@ -445,7 +503,7 @@ class FourM(nn.Module):
         # TODO: There are n_tokens_target positions to predict, and we will unmask them in `num_steps` steps.
         # The order in which we unmask the tokens is arbitrary, but here we will use a random order.
         # That means, we will randomly shuffle the positions from 0 to n_tokens_target - 1, and then
-        # split them into `num_steps` steps. 
+        # split them into `num_steps` steps.
         B, N = enc_input_tokens.shape
         assert B == 1
         device = enc_input_tokens.device
@@ -454,46 +512,68 @@ class FourM(nn.Module):
 
         schedule = self.get_unmasking_schedule(n_tokens_target, num_steps)
 
-        # dec_input_positions_list is a list of position indices of shape (1, k) for each step. 
+        # dec_input_positions_list is a list of position indices of shape (1, k) for each step.
         # Together, they should contain all the positions from 0 to n_tokens_target - 1 exactly once.
-        all_positions = torch.randperm(n_tokens_target, device=device) # [0,1,2...,n_token_target] permuted
+        all_positions = torch.randperm(
+            n_tokens_target, device=device
+        )  # [0,1,2...,n_token_target] permuted
         dec_input_positions_list = []
         start = 0
         for k in schedule:
             end = start + k
-            dec_input_positions_list.append(all_positions[start:end].unsqueeze(0)) # => schedule = [3,3,4] => [[10,7,11],[9,2,3],[15,4,1]] 
+            dec_input_positions_list.append(
+                all_positions[start:end].unsqueeze(0)
+            )  # => schedule = [3,3,4] => [[10,7,11],[9,2,3],[15,4,1]]
             start = end
-        
+
         for step, k in enumerate(schedule):
             # Select the k positions to predict for this step
             dec_input_positions = dec_input_positions_list[step]
             # Create a tensor of k IDs specifying the target modality
-            dec_input_modalities = target_mod_index * torch.ones(1, k, device=device, dtype=torch.long)
+            dec_input_modalities = target_mod_index * torch.ones(
+                1, k, device=device, dtype=torch.long
+            )
 
-            # TODO: Forward pass through the model to get the next tokens' logits. 
+            # TODO: Forward pass through the model to get the next tokens' logits.
             # Select the 0-th element to get shape: [k, vocab_size]
-            predicted_logits = self.forward_model(enc_input_tokens,enc_input_modalities,enc_input_positions,dec_input_modalities,dec_input_positions)
+            predicted_logits = self.forward_model(
+                enc_input_tokens,
+                enc_input_modalities,
+                enc_input_positions,
+                dec_input_modalities,
+                dec_input_positions,
+            )
             predicted_logits = predicted_logits[0]
-            assert predicted_logits.shape == (k,self.vocab_size), f"Predicted logits shape : {predicted_logits.shape}"
-            
+            assert predicted_logits.shape == (
+                k,
+                self.vocab_size,
+            ), f"Predicted logits shape : {predicted_logits.shape}"
+
             # TODO: Sample new tokens for the predicted_logits
             # Hint: Use the sample_tokens function from utils/sampling.py
             # Make sure to pass the `temp`, `top_k` and `top_p` arguments
-            samples, _ = sample_tokens(predicted_logits,temperature=temp,top_k=top_k,top_p=top_p)
+            samples, _ = sample_tokens(
+                predicted_logits, temperature=temp, top_k=top_k, top_p=top_p
+            )
 
             # TODO: Concatenate the new tokens to the encoder input tokens for the next step
             # Specifically, concatenate the k samples to enc_input_tokens, the k dec_input_positions
             # to enc_input_positions, and the k dec_input_modalities to enc_input_modalities.
             # The resulting shapes for each tensor should be [1, N_prev + k].
-            #print(f"Enc : {enc_input_tokens.shape},smaple : {samples.shape}")
-            enc_input_tokens = torch.cat([enc_input_tokens, samples.unsqueeze(0)], dim=1)
-            enc_input_positions = torch.cat([enc_input_positions, dec_input_positions], dim=1)
-            enc_input_modalities = torch.cat([enc_input_modalities, dec_input_modalities], dim=1)
-            
-            
+            # print(f"Enc : {enc_input_tokens.shape},smaple : {samples.shape}")
+            enc_input_tokens = torch.cat(
+                [enc_input_tokens, samples.unsqueeze(0)], dim=1
+            )
+            enc_input_positions = torch.cat(
+                [enc_input_positions, dec_input_positions], dim=1
+            )
+            enc_input_modalities = torch.cat(
+                [enc_input_modalities, dec_input_modalities], dim=1
+            )
+
         # Select the predicted tokens for the target modality and unshuffle them
         pred_tokens = enc_input_tokens[enc_input_modalities == target_mod_index]
         indices = enc_input_positions[enc_input_modalities == target_mod_index]
         pred_tokens = pred_tokens[indices.argsort()].unsqueeze(0)
-        
+
         return pred_tokens, enc_input_tokens, enc_input_positions, enc_input_modalities

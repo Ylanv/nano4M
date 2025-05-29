@@ -40,6 +40,6 @@ srun bash -c "
   echo \${TORCHRUN_ARGS}
   echo \${SLURMD_NODENAME}
 
-  torchrun \${TORCHRUN_ARGS} run_training.py \
+  torchrun \${TORCHRUN_ARGS} nano4M/run_training.py \
     --config $CONFIG_FILE
 "
