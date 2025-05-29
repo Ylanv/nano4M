@@ -8,7 +8,6 @@ audio_tokenizer/vqvae/data/inference/
 *.err
 *.tar.gz
 *.pt
-*.jpg
 *.pyc
 .DS_Store
 __pycache__
