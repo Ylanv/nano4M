@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 from .simple_multimodal_dataset import SimpleMultimodalDataset
 from .masking import SimpleMultimodalMasking
-from ...utils import infinite_iterator
+from ..utils import infinite_iterator
 
 
 def create_multimodal_masked_dataloader(

@@ -18,6 +18,7 @@ from pathlib import Path
 import json
 import numpy as np
 import torch
+import sys
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 from tokenizers.processors import TemplateProcessing
@@ -111,13 +112,31 @@ class SimpleMultimodalDataset(Dataset):
             ext = self.modality_extensions[modality]
             file_path = os.path.join(self.root_dir, self.split, modality, f"{file_name}{ext}")
 
-            if 'tok' in modality:
-                tokens = np.load(file_path)[augmentation_idx]
+            if 'tok_audio' in modality:
+                tokens = np.load(file_path).flatten()
                 tokens = torch.from_numpy(tokens).long()
-            elif 'scene_desc' in modality:
+                
+                # === Sanity check ===
+                assert tokens.dim() == 1, \
+                    f"Audio sample as more than 1 dim"
+                
+                # === Crop audio sequence if too long === 
+                length = tokens.shape[0]
+                max_length = self.text_max_length 
+                pad_value = 1024
+                if length > max_length:
+                    tokens = tokens[:max_length]
+                elif length < max_length:
+                    padding = torch.full((max_length - length,), pad_value, dtype=tokens.dtype, device=tokens.device)
+                    tokens = torch.cat([tokens, padding], dim=0)
+                    
+            elif 'tok' in modality:
+                tokens = np.load(file_path).flatten()
+                tokens = torch.from_numpy(tokens).long()
+            elif 'caption' in modality:
                 with open(file_path, 'r') as f:
                     captions = json.load(f)
-                caption = captions[augmentation_idx]
+                caption = captions["text"]
                 tokenized = self.text_tokenizer(
                     caption, max_length=self.text_max_length, padding='max_length', 
                     truncation=True, return_tensors='pt'

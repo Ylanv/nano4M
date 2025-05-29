@@ -1,30 +1,30 @@
-run_name: tok_rgb_caption
-output_dir: ./outputs/audiocaps_tok_rgb
+run_name: audio_modality
+output_dir: ./outputs/full_moda
 
 # Global config
 global_vars:
   batch_size: 64
-  modalities: ["tok_rgb@256", "caption"]
-  vocab_sizes: [64000, 50257]  # GPT-2 vocab size
-  max_seq_lens: [256, 256]
-  input_alphas: [1.0, 1.0]
-  target_alphas: [1.0, 1.0]
+  modalities: ["tok_rgb@256", "caption","tok_audio@48k"]
+  vocab_sizes: [64000, 50304,1025]
+  max_seq_lens: [256, 256,256]
+  input_alphas: [1.0, 1.0,1.0]
+  target_alphas: [1.0, 1.0,1.0]
   input_tokens_range: [1, 128]
   target_tokens_range: [1, 128]
 
 # Training settings
 batch_size: ${global_vars.batch_size}
-total_tokens: 200  # in millions
-warmup_tokens: 10
+total_tokens: 5000  # in millions
+warmup_tokens: 500
 num_tokens_per_sample: 256
 lr: 0.0006
 min_lr: 0.000001
 weight_decay: 0.05
 clip_grad: 1.0
-dtype: fp16
+dtype: fp32
 
-eval_freq: 50
-save_ckpt_freq: 100
+eval_freq: 100
+save_ckpt_freq: 1000
 
 log_wandb: True
 wandb_project: fourm
@@ -67,7 +67,7 @@ train_loader_config:
   text_max_length: 256
   batch_size: ${global_vars.batch_size}
   infinite: True
-  num_workers: 8
+  num_workers: 10
   pin_memory: True
   shuffle: True
   drop_last: True
@@ -76,7 +76,7 @@ train_loader_config:
 eval_loader_config:
   _target_: nanofm.data.multimodal.create_multimodal_masked_dataloader
   root_dir: /work/com-304/snoupy/audiocaps/
-  split: eval
+  split: eval2
   modalities: ${global_vars.modalities}
   vocab_sizes: ${global_vars.vocab_sizes}
   max_seq_lens: ${global_vars.max_seq_lens}
@@ -89,7 +89,7 @@ eval_loader_config:
   text_tokenizer_path: gpt2
   text_max_length: 256
   batch_size: ${global_vars.batch_size}
-  num_workers: 8
+  num_workers: 10
   pin_memory: True
   shuffle: False
   drop_last: False
