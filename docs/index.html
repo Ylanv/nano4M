@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>nano4M – Audio Modality Extension</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Contenu principal centré -->
+  <div class="wrapper">
+    <div class="title-section">
+      <h1>Integrating Audio into nano4M: 
+        A Multimodal Extension</h1>
+      <div class="authors">
+        <a href="https://github.com/petritarifi" target="_blank">Petrit Arifi</a>,
+        <a href="https://github.com/ozairfaizan" target="_blank">Ozair Faizan</a>,
+        <a href="https://github.com/ylanv" target="_blank">Ylan Vifian</a>
+      </div>
+      <div class="affiliation">
+        Swiss Federal Institute of Technology Lausanne (EPFL)
+
+      </div>
+      <div class="button-row">
+        <a href="https://github.com/ylanv/nano4M" target="_blank" class="button">🔗 Code</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bandeau abstract -->
+  <section class="abstract-section">
+    <h2>Abstract</h2>
+    <p>
+      We extend <strong>nano4M</strong> by injecting an <em>audio</em> stream—tokenised with our custom VQ-VAE—to train a truly
+      <em>multimodal</em> foundation model. This lightweight prototype shows that even small Transformer backbones can
+      learn meaningful cross-modal representations, enabling zero-shot <abbr title="Text-to-Speech">TTS</abbr> and audio-conditioned image
+      generation. We describe the audio tokenizer, the aligned dataset we built from AudioCaps, and the training
+      tweaks that made the model converge despite limited compute.
+    </p>
+  </section>
+
+  <!-- Bandeau overview -->
+  <section class="overview-section">
+    <h2>Overview</h2>
+    <div class="overview-cards">
+      <a class="card" href="#intro">Introduction</a>
+      <a class="card" href="#audio-tokenizer">Audio tokenizer</a>
+      <a class="card" href="#dataset">Dataset</a>
+      <a class="card" href="#nanofm">Nano4M & Extras</a>
+      <a class="card" href="#conclusion">Conclusion & Limitations</a>
+    </div>
+  </section>
+
+  <!-- Contenu de sections (à remplir si tu veux que les boutons scrollent vers quelque chose) -->
+  <div class="wrapper">
+    <div class="section" id="intro">
+      <h2>Introduction</h2>
+      <p>...</p>
+    </div>
+
+    <div class="section" id="audio-tokenizer">
+      <h2>Audio Tokenizer</h2>
+      <p>...</p>
+    </div>
+
+    <div class="section" id="dataset">
+      <h2>Dataset</h2>
+      <p>...</p>
+    </div>
+    <div class="section" id="nanofm">
+      <h2>Nano4M & Extras</h2>
+      <p>
+        For this project, we built our own multimodal dataset based on <strong>AudioCaps</strong>, and tokenized it using three different tokenizers:
+      </p>
+      <ul>
+        <li><strong>Cosmos</strong> for RGB images (patch-based tokenization),</li>
+        <li><strong>GPT-2</strong> for text captions,</li>
+        <li>and our own <strong>custom VQ-VAE</strong> tokenizer for audio.</li>
+      </ul>
+      <p>
+        After tokenizing the entire dataset, we trained our model using the <strong>nano4M architecture</strong>, which is a compact multimodal foundation model based on a masked Transformer encoder.
+        The training objective allowed the model to learn joint representations by masking and predicting across modalities (text, audio, and image).
+      </p>
+      <p>
+        The result is a lightweight but versatile model capable of handling cross-modal reasoning and generation, including early experiments in text-to-audio synthesis.
+      </p>
+    </div>
+    <div class="section" id="conclusion">
+      <h2>Conclusion & Limitations</h2>
+      <p>...</p>
+    </div>
+
+    <div class

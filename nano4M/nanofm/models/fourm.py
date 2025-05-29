@@ -227,19 +227,22 @@ class FourM(nn.Module):
             tensor of shape (B, N, D).
         """
         B, N = enc_input_tokens.shape
-
+       
         # TODO: Embed the input tokens `enc_input_tokens` using the input embedding layer `enc_tok_emb`. Shape: [B, N, D]
-        x = self.enc_tok_emb(enc_input_tokens)
+        emb = self.enc_tok_emb
 
+   
+
+        x = self.enc_tok_emb(enc_input_tokens)
         # TODO: Embed the input modality IDs `enc_input_modalities` using the input embedding layer `enc_mod_emb`. Shape: [B, N, D]
         # Sum the modality embeddings to the token embeddings.
         x = x + self.enc_mod_emb(enc_input_modalities)
-
+        
         # TODO: Get the positional embeddings for the input positions `enc_input_positions` and add them to the input tokens. Shape: [B, N, D]
         # Sum the positional embeddings to the token embeddings.
         enc_posembs = self.pos_emb[enc_input_positions]
         x = x + enc_posembs
-
+        
         # Construct (B, N, N) attention mask for padding. True = used, False = masked out.
         enc_pad_attn_mask = (
             repeat(enc_pad_mask, "b n -> b m n", m=N)
@@ -249,11 +252,11 @@ class FourM(nn.Module):
 
         # TODO: Forward pass through the Transformer encoder. Shape [B, N, D]
         # Hint: Don't forget to pass the encoder attention mask `enc_pad_attn_mask`.
-        x = self.encoder(x, enc_pad_attn_mask)
-
+        x = self.encoder(x,enc_pad_attn_mask)
+        
         # TODO: Pass to the encoder output normalization layer
         x = self.enc_norm(x)
-
+       
         return x, enc_posembs
 
     def forward_decoder(
@@ -285,7 +288,6 @@ class FourM(nn.Module):
         """
         B, M = dec_input_modalities.shape
         _, N, _ = enc_context.shape
-
         # TODO: Embed the target modality IDs `dec_input_modalities` using the embedding layer `dec_mod_emb`. Shape: [B, M, D]
         x = self.dec_mod_emb(dec_input_modalities)
 
@@ -333,22 +335,16 @@ class FourM(nn.Module):
     ) -> torch.Tensor:
 
         # Encoder forward pass
-        enc_x, enc_posembs = self.forward_encoder(
-            enc_input_tokens, enc_input_modalities, enc_input_positions, enc_pad_mask
-        )
-
+        enc_x, enc_posembs = self.forward_encoder(enc_input_tokens, enc_input_modalities, enc_input_positions, enc_pad_mask)
+        
+        
         # Decoder forward pass
-        dec_x = self.forward_decoder(
-            dec_input_modalities,
-            dec_input_positions,
-            enc_x,
-            enc_posembs,
-            enc_pad_mask,
-            dec_pad_mask,
-        )
+        dec_x = self.forward_decoder(dec_input_modalities, dec_input_positions, enc_x, enc_posembs, enc_pad_mask, dec_pad_mask)
+       
 
         # TODO: Pass `dec_x` through linear output head `to_logits` to compute the logits. Shape: [B, M, vocab_size]
         logits = self.to_logits(dec_x)
+        
 
         return logits
 
@@ -391,12 +387,11 @@ class FourM(nn.Module):
                 if mod_mask.any():
                     per_modality_losses[modality] = losses[mod_mask].mean()
                 else:
-                    per_modality_losses[modality] = torch.tensor(
-                        0.0, device=losses.device
-                    )
-
+                    per_modality_losses[modality] = torch.tensor(0.0, device=losses.device)
+            
+          
             loss = sum(per_modality_losses.values()) / len(per_modality_losses)
-
+            
         return loss, per_modality_losses
 
     def forward(self, data_dict: Dict[str, Any]) -> Tuple[torch.Tensor, Dict[str, Any]]:

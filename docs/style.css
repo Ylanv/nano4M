@@ -1,0 +1,172 @@
+body {
+  font-family: "Helvetica Neue", sans-serif;
+  margin: 0;
+  line-height: 1.6;
+  color: #2c3e50;
+  background: #fdfdfd;
+}
+
+/* Wrapper pour centrer le contenu */
+.wrapper {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2em 1.5em;
+}
+
+/* Titre principal */
+.title-section {
+  text-align: center;
+  margin-bottom: 3em;
+}
+
+.title-section h1 {
+  font-size: 2.8em;
+  font-weight: 700;
+  margin-bottom: 0.3em;
+}
+
+.title-section .authors {
+  font-size: 1.2em;
+  margin-bottom: 0.5em;
+}
+
+.title-section .authors a {
+  text-decoration: none;
+  color: #3498db;
+}
+
+.title-section .affiliation {
+  font-size: 1.1em;
+  color: #555;
+}
+
+.button-row {
+  margin-top: 1em;
+}
+
+.button {
+  display: inline-block;
+  background: #2c3e50;
+  color: #fff;
+  padding: 0.5em 1.2em;
+  margin: 0 0.5em;
+  border-radius: 999px;
+  font-size: 1em;
+  text-decoration: none;
+  transition: background 0.3s ease;
+}
+
+.button:hover {
+  background: #34495e;
+}
+
+/* Titres généraux */
+h2 {
+  border-bottom: 2px solid #d6eaf8;
+  padding-bottom: 0.3em;
+  margin-top: 2.5em;
+  color: #2e86c1;
+  font-size: 1.8em;
+}
+
+h3 {
+  color: #2980b9;
+  margin-top: 1.5em;
+  font-size: 1.4em;
+}
+
+/* Détail pour décaler les titres de section avec % */
+.section h2 {
+  position: relative;
+  left: -2rem;
+}
+
+
+
+/* Contenu de chaque bloc */
+.section {
+  margin-bottom: 3em;
+}
+
+ul {
+  padding-left: 1.5em;
+}
+
+code {
+  background-color: #f4f6f7;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-family: Menlo, monospace;
+  font-size: 0.95em;
+}
+
+/* === Abstract & Overview === */
+.abstract-section,
+.overview-section {
+  width: 100%;
+  background: #f7f7f7;
+  text-align: center;
+}
+
+/* Abstract */
+.abstract-section {
+  padding: 3rem 1rem 1.5rem;
+}
+
+.abstract-section h2 {
+  font-size: 2.2em;
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+.abstract-section p {
+  max-width: 900px;
+  margin: 0 auto;
+  font-size: 1.1em;
+  color: #444;
+  line-height: 1.8;
+  padding-bottom: 1rem;
+}
+
+/* Overview */
+.overview-section {
+  padding: 1rem 1rem 3rem;
+  margin-top: 0;
+}
+
+.overview-section h2 {
+  font-size: 2.2em;
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+/* Boutons overview */
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1.2rem;
+  max-width: 1000px;
+  margin: 2rem auto 0;
+  padding: 0 1rem;
+}
+
+.card {
+  height: 90px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+  font-size: 1em;
+  color: #2c3e50;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8em;
+  text-align: center;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
