@@ -48,7 +48,8 @@
       <a class="card" href="#intro">Introduction</a>
       <a class="card" href="#audio-tokenizer">Audio tokenizer</a>
       <a class="card" href="#dataset">Dataset</a>
-      <a class="card" href="#nanofm">Nano4M & Extras</a>
+      <a class="card" href="#nanofm">Nano4M</a>
+      <a class="card" href="#architecture-modifications">Architecture modifications</a>
       <a class="card" href="#conclusion">Conclusion & Limitations</a>
     </div>
   </section>
@@ -237,7 +238,7 @@
         While AudioCaps provides audio-caption pairs, it lacks corresponding aligned images.
         We considered extracting frames from the source YouTube videos, but this would violate YouTube's 
         Terms of Service and risk account termination.
-        Instead, we generated synthetic images using a <strong>Dsitilled Stable Diffusion inference</strong>
+        Instead, we generated synthetic images using <strong>Dsitilled Stable Diffusion inference</strong>
         conditioned on the text captions.
       </p>
 
@@ -279,13 +280,17 @@
       <p>
         <ul>
           <li>Downloading the audio from and caption from
-              <a href="https://huggingface.co/datasets/confit/audiocaps">AudioCaps</a></li>
+            <a href="https://huggingface.co/datasets/confit/audiocaps">AudioCaps</a>.
+          </li>
           <li>Generating images using 
-            <a href="https://huggingface.co/docs/diffusers/main/en/using-diffusers/distilled_sd">Distilled Stable Diffusion</a></li>
+            <a href="https://huggingface.co/docs/diffusers/main/en/using-diffusers/distilled_sd">Distilled Stable Diffusion</a>.
+          </li>
           <li>Tokenizing the images using
-            <a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DI16x16">Cosmos-Tokenizer</a></li>
+            <a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DI16x16">Cosmos-Tokenizer</a>.
+          </li>
           <li>Tokenzing the audio using 
-            <a href="https://github.com/facebookresearch/encodec">EnCodec</a></li>
+            <a href="https://huggingface.co/docs/transformers/model_doc/encodec">Encodec</a>.
+          </li>
         </ul>
       </p>
       
@@ -296,9 +301,10 @@
         unrecognizable. Furthermore, AudioCaps dataset contains mostly environmental sounds which due to 
         their uniqueness may be hard to learn and generate for a simple model.
       </p>
+    </div>
 
-    <div class="section2">
-      <h2>Nano4M & Extras</h2>
+    <div class="section" id="nanofm">
+      <h2>Nano4M</h2>
       <p>
       Once the dataset was fully tokenized, we trained our model using the <strong>nano4M architecture</strong>, which is based on a <strong>4M</strong>. During training, we intentionally hide a subset of the input tokens across modalities and ask the model to predict them using the available context.
       </p>
@@ -360,8 +366,43 @@
       </div>
   </div>
 
+    <div class="section" id="architecture-modifications">
+      <h2>Architecture modifications</h2>
+      <p>
+        In order to improve the performance of the base line model, we experimented with two architectural
+        modifications: <strong>Muon Optimizer</strong> and <strong>Rotary Positional Embeddings</strong>.
+      </p>
+
+      <h3>Muon Optimizer</h3>
+      <p>
+        Muon is an optimizer that works alongside AdamW, designed to improve convergence speed.
+        It works only on parameters that are 2D or higher, all other parameters are optimized by AdamW.
+        We used the implementation from <a href="https://github.com/KellerJordan/Muon">Keller Jordan</a>.
+      </p>
+      <p>
+        We trained nano4M with Muon on the Clever multimodal dataset, and achieved a validation Loss
+        of 3.51, slightly outperforming the baseline AdamW model which achieved a validation loss of 3.53.
+      </p>
+
+      <h3>Rotary Positional Embeddings</h3>
+      <p>
+        Rotary Positional Embeddings (RoPE) encodes both absolute and relative positional information by
+        applying a rotation to the query and key vectors in the attention blocks. They have been shown to
+        improve the model's ability to capture long-range dependencies and relative positions in sequences.
+        We used the implementation from
+        <a href="https://docs.pytorch.org/torchtune/0.5/_modules/torchtune/modules/position_embeddings.html">torchtune</a>.
+      </p>
+      <p>
+        We trained nano4M with RoPE1D and RoPE2D on the Clever multimodal dataset.
+        The RoPE1D model achieved a validation loss of 4.29, which is significantly worse than the baseline
+        sine-cosine positional embeddings (3.53), likely due to the dataset containing mostly 2D modalities.
+        The RoPE2D model, achieved a validation loss of 3.63, which is slightly worse than the baseline,
+        likey due to the sequence length (256) being too short to fully benefit from RoPE encoding.
+      </p>
     </div>
-    <div class="section3">
+
+
+    <div class="section" id="conclusion">
       <h2>Conclusion & Limitations</h2>
       <p>
   In this work, we explored the feasibility of integrating an audio modality into <strong>nano4M</strong>, 
@@ -400,4 +441,5 @@
 </p>
     </div>
 
-    <div class
+  </div>
+</body>
