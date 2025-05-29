@@ -1,8 +1,6 @@
-
-
 <h1 align="center">
   <br>
-  <img src="https://user-images.githubusercontent.com/your-logo-placeholder.png" alt="nano4M Audio Logo" width="200">
+  <img src="https://github.com/user-attachments/assets/bfd57eb7-b956-47b7-8631-b2c40f0bbdf3" alt="nano4M Audio Logo" width="200">
   <br>
 </h1>
 
@@ -28,14 +26,14 @@
   <a href="#notebooks">Notebooks</a> •
   <a href="#usage">Usage</a> •
   <a href="#training--weights">Training & Weights</a> •
-  <a href="#credits">Credits</a> •
+  <a href="#credits">Credits</a> 
 </p>
 
 ---
 
 ## Overview
 
-**nano4M-Audio** is a research extension of [nano4M](https://github.com/EPFL-VILAB/com-304-FM-project/tree/main/nano4M) — a simplified variant of [4M](https://4m.epfl.ch/), focusing on efficient multimodal learning. This project integrates **audio as a new modality**.
+**nano4M-Audio** is a research extension of [nano4M](https://github.com/EPFL-VILAB/com-304-FM-project/tree/main/nano4M),a simplified variant of [4M](https://4m.epfl.ch/), focusing on efficient multimodal learning. This project integrates **audio as a new modality**.
 
 
 ---
